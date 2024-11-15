@@ -86,7 +86,6 @@
         <div class="code-box" id="invite-code" onclick="copyCode()">کد دعوت</div>
         <div class="invites">
             <p>تعداد دعوت‌ها: <span id="invite-count">0</span></p>
-            <p>تعداد افرادی که ادمین تعیین کرده: <span id="admin-count">0</span></p>
         </div>
         <button class="logout-btn" onclick="logout()">خروج</button>
     </div>
@@ -94,25 +93,26 @@
     <!-- بخش ادمین -->
     <div class="admin-section" id="admin-section">
         <h2>پنل ادمین</h2>
-        <p>برای دسترسی به پنل ادمین، باید شناسه بازی و نام بازی را وارد کنید:</p>
-        <div class="input-container">
-            <label for="admin-game-name">اسم بازی</label>
-            <input type="text" id="admin-game-name" class="input-box">
-        </div>
-        <div class="input-container">
-            <label for="admin-game-id">شناسه بازی</label>
-            <input type="text" id="admin-game-id" class="input-box">
-        </div>
-        <button class="btn" onclick="adminLogin()">ورود به پنل ادمین</button>
+        <p>برای اضافه کردن یا حذف کردن کاربران، از این بخش استفاده کنید.</p>
 
+        <h3>افزودن کاربر جدید</h3>
+        <div class="input-container">
+            <label for="new-user-name">اسم بازی</label>
+            <input type="text" id="new-user-name" class="input-box">
+        </div>
+        <div class="input-container">
+            <label for="new-user-id">شناسه بازی</label>
+            <input type="text" id="new-user-id" class="input-box">
+        </div>
+        <button class="btn" onclick="addUser()">افزودن کاربر</button>
+
+        <h3>لیست کاربران ثبت‌شده</h3>
         <div class="user-list" id="user-list"></div>
         <button class="logout-btn" onclick="logout()">خروج از پنل ادمین</button>
     </div>
 
     <script>
         let inviteCount = 0;
-        let adminCount = 0;
-        let inviteCode = '';
         let users = JSON.parse(localStorage.getItem('users')) || [];
         const adminCredentials = { gameName: 'اسی', gameId: 'ctndhivvmr' };
 
@@ -122,9 +122,7 @@
             if (userData) {
                 document.getElementById('form-container').style.display = 'none';
                 const user = JSON.parse(userData);
-                inviteCode = user.inviteCode;
-                inviteCount = user.inviteCount;
-                adminCount = user.adminCount;
+                inviteCount = user.inviteCount || 0; // Default 0 invite count
 
                 // اگر ادمین باشد، نمایش پنل ادمین
                 if (user.gameName === adminCredentials.gameName && user.gameId === adminCredentials.gameId) {
@@ -132,9 +130,8 @@
                     showUserList();
                 } else {
                     document.getElementById('code-container').style.display = 'block';
-                    document.getElementById('invite-code').textContent = inviteCode;
+                    document.getElementById('invite-code').textContent = user.inviteCode;
                     document.getElementById('invite-count').textContent = inviteCount;
-                    document.getElementById('admin-count').textContent = adminCount;
                 }
             } else {
                 document.getElementById('form-container').style.display = 'block';
@@ -147,21 +144,18 @@
             let gameId = document.getElementById('game-id').value;
 
             if(gameName && gameId) {
-                inviteCode = gameId + '-' + Math.random().toString(36).substring(2, 15);
-                let user = { gameName, gameId, inviteCode, invites: 0 };
+                const inviteCode = gameId + '-' + Math.random().toString(36).substring(2, 15);
+                let user = { gameName, gameId, inviteCode, inviteCount: 0 };
                 users.push(user);
 
                 // ذخیره‌سازی در localStorage
                 localStorage.setItem('users', JSON.stringify(users));
                 localStorage.setItem('userData', JSON.stringify(user));
-                localStorage.setItem('inviteCount', inviteCount);
-                localStorage.setItem('adminCount', adminCount);
 
                 document.getElementById('form-container').style.display = 'none';
                 document.getElementById('code-container').style.display = 'block';
                 document.getElementById('invite-code').textContent = inviteCode;
                 document.getElementById('invite-count').textContent = inviteCount;
-                document.getElementById('admin-count').textContent = adminCount;
             }
         }
 
@@ -173,21 +167,24 @@
             });
         }
 
-        // ورود به پنل ادمین
-        function adminLogin() {
-            const adminGameName = document.getElementById('admin-game-name').value;
-            const adminGameId = document.getElementById('admin-game-id').value;
+        // افزودن کاربر جدید توسط ادمین
+        function addUser() {
+            let newUserName = document.getElementById('new-user-name').value;
+            let newUserId = document.getElementById('new-user-id').value;
+            const inviteCode = newUserId + '-' + Math.random().toString(36).substring(2, 15);
 
-            if (adminGameName === adminCredentials.gameName && adminGameId === adminCredentials.gameId) {
-                document.getElementById('form-container').style.display = 'none';
-                document.getElementById('admin-section').style.display = 'block';
-                showUserList();
-            } else {
-                alert('شناسه یا نام بازی اشتباه است!');
+            if (newUserName && newUserId) {
+                let newUser = { gameName: newUserName, gameId: newUserId, inviteCode, inviteCount: 0 };
+                users.push(newUser);
+
+                // ذخیره‌سازی جدید در localStorage
+                localStorage.setItem('users', JSON.stringify(users));
+
+                showUserList();  // نمایش دوباره لیست کاربران
             }
         }
 
-        // نمایش لیست کاربران
+        // نمایش لیست کاربران و امکان حذف
         function showUserList() {
             const userListContainer = document.getElementById('user-list');
             userListContainer.innerHTML = '';
@@ -195,7 +192,8 @@
                 let userItem = document.createElement('div');
                 userItem.classList.add('user-item');
                 userItem.innerHTML = `
-                    <span>نام بازی: ${user.gameName}, شناسه: ${user.gameId}, تعداد دعوت‌ها: ${user.invites}</span>
+                    <span>نام بازی: ${user.gameName}, شناسه: ${user.gameId}, تعداد دعوت‌ها: ${user.inviteCount}</span>
+                    <button onclick="deleteUser(${index})">حذف</button>
                     <button onclick="changeInviteCount(${index})">تغییر تعداد دعوت‌ها</button>
                 `;
                 userListContainer.appendChild(userItem);
@@ -204,23 +202,30 @@
 
         // تغییر تعداد دعوت‌ها
         function changeInviteCount(userIndex) {
-            let newInviteCount = prompt('تعداد دعوت‌ها را وارد کنید:', users[userIndex].invites);
+            let newInviteCount = prompt('تعداد دعوت‌ها را وارد کنید:', users[userIndex].inviteCount);
             if (newInviteCount !== null && !isNaN(newInviteCount)) {
-                users[userIndex].invites = parseInt(newInviteCount);
+                users[userIndex].inviteCount = parseInt(newInviteCount);
                 localStorage.setItem('users', JSON.stringify(users));
                 showUserList();  // دوباره لیست را نمایش می‌دهیم
             }
         }
 
+        // حذف کاربر
+                // حذف کاربر
+        function deleteUser(userIndex) {
+            users.splice(userIndex, 1);  // حذف کاربر از آرایه
+            localStorage.setItem('users', JSON.stringify(users));  // ذخیره تغییرات در localStorage
+            showUserList();  // به‌روزرسانی لیست کاربران
+        }
+
         // خروج از حساب کاربری یا پنل ادمین
         function logout() {
-            localStorage.removeItem('userData');
-            localStorage.removeItem('inviteCount');
-            localStorage.removeItem('adminCount');
+            localStorage.removeItem('userData');  // حذف اطلاعات کاربر از localStorage
             document.getElementById('code-container').style.display = 'none';
             document.getElementById('admin-section').style.display = 'none';
-            document.getElementById('form-container').style.display = 'block';
+            document.getElementById('form-container').style.display = 'block';  // بازگشت به صفحه اصلی
         }
     </script>
 </body>
 </html>
+
