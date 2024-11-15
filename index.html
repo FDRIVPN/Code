@@ -104,6 +104,7 @@
 
     <script>
         const adminCredentials = { gameName: 'اسی', gameId: 'ctndhivvmr' };
+        let users = JSON.parse(localStorage.getItem('users')) || [];
         let inviteCount = 0;
 
         // بررسی وضعیت ثبت‌نام و نمایش مناسب صفحه
@@ -145,7 +146,6 @@
             let gameName = document.getElementById('game-name').value;
             let gameId = document.getElementById('game-id').value;
 
-            const users = JSON.parse(localStorage.getItem('users')) || [];
             const existingUser = users.find(user => user.gameName === gameName && user.gameId === gameId);
 
             if (existingUser) {
@@ -159,9 +159,8 @@
                     const inviteCode = gameId + '-' + Math.random().toString(36).substring(2, 15);
                     let user = { gameName, gameId, inviteCode, inviteCount: 0 };
 
-                    users.push(user);
-
                     // ذخیره‌سازی در localStorage (رمزنگاری شده)
+                    users.push(user);
                     localStorage.setItem('users', encrypt(users));
                     localStorage.setItem('userData', encrypt(user));
 
@@ -173,9 +172,16 @@
             }
         }
 
+        // کپی کردن کد دعوت
+        function copyCode() {
+            const code = document.getElementById('invite-code').textContent;
+            navigator.clipboard.writeText(code).then(() => {
+                alert('کد دعوت کپی شد!');
+            });
+        }
+
         // بارگذاری و نمایش لیست تمام کاربران
         function loadAllUsers() {
-            const users = JSON.parse(decrypt(localStorage.getItem('users'))) || [];
             const userListContainer = document.getElementById('user-list');
             userListContainer.innerHTML = '';
 
