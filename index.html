@@ -57,6 +57,14 @@
             border: none;
             cursor: pointer;
         }
+        .logout-btn {
+            margin-top: 20px;
+            padding: 10px 20px;
+            background-color: #e74c3c;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
@@ -80,6 +88,7 @@
             <p>تعداد دعوت‌ها: <span id="invite-count">0</span></p>
             <p>تعداد افرادی که ادمین تعیین کرده: <span id="admin-count">0</span></p>
         </div>
+        <button class="logout-btn" onclick="logout()">خروج</button>
     </div>
 
     <!-- بخش ادمین -->
@@ -97,6 +106,7 @@
         <button class="btn" onclick="adminLogin()">ورود به پنل ادمین</button>
 
         <div class="user-list" id="user-list"></div>
+        <button class="logout-btn" onclick="logout()">خروج از پنل ادمین</button>
     </div>
 
     <script>
@@ -165,8 +175,8 @@
 
         // ورود به پنل ادمین
         function adminLogin() {
-            const adminGameName = document.getElementById('اسی').value;
-            const adminGameId = document.getElementById('ctndhivvmr').value;
+            const adminGameName = document.getElementById('admin-game-name').value;
+            const adminGameId = document.getElementById('admin-game-id').value;
 
             if (adminGameName === adminCredentials.gameName && adminGameId === adminCredentials.gameId) {
                 document.getElementById('form-container').style.display = 'none';
@@ -200,6 +210,16 @@
                 localStorage.setItem('users', JSON.stringify(users));
                 showUserList();  // دوباره لیست را نمایش می‌دهیم
             }
+        }
+
+        // خروج از حساب کاربری یا پنل ادمین
+        function logout() {
+            localStorage.removeItem('userData');
+            localStorage.removeItem('inviteCount');
+            localStorage.removeItem('adminCount');
+            document.getElementById('code-container').style.display = 'none';
+            document.getElementById('admin-section').style.display = 'none';
+            document.getElementById('form-container').style.display = 'block';
         }
     </script>
 </body>
