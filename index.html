@@ -106,6 +106,31 @@
         let users = JSON.parse(localStorage.getItem('users')) || [];
         const adminCredentials = { gameName: 'اسی', gameId: 'ctndhivvmr' };
 
+        // بررسی وضعیت ثبت‌نام و نمایش مناسب صفحه
+        window.onload = function() {
+            const userData = localStorage.getItem('userData');
+            if (userData) {
+                document.getElementById('form-container').style.display = 'none';
+                const user = JSON.parse(userData);
+                inviteCode = user.inviteCode;
+                inviteCount = user.inviteCount;
+                adminCount = user.adminCount;
+
+                // اگر ادمین باشد، نمایش پنل ادمین
+                if (user.gameName === adminCredentials.gameName && user.gameId === adminCredentials.gameId) {
+                    document.getElementById('admin-section').style.display = 'block';
+                    showUserList();
+                } else {
+                    document.getElementById('code-container').style.display = 'block';
+                    document.getElementById('invite-code').textContent = inviteCode;
+                    document.getElementById('invite-count').textContent = inviteCount;
+                    document.getElementById('admin-count').textContent = adminCount;
+                }
+            } else {
+                document.getElementById('form-container').style.display = 'block';
+            }
+        }
+
         // ذخیره اطلاعات کاربر
         function saveData() {
             let gameName = document.getElementById('game-name').value;
@@ -118,6 +143,7 @@
 
                 // ذخیره‌سازی در localStorage
                 localStorage.setItem('users', JSON.stringify(users));
+                localStorage.setItem('userData', JSON.stringify(user));
                 localStorage.setItem('inviteCount', inviteCount);
                 localStorage.setItem('adminCount', adminCount);
 
@@ -139,8 +165,8 @@
 
         // ورود به پنل ادمین
         function adminLogin() {
-            const adminGameName = document.getElementById('admin-game-name').value;
-            const adminGameId = document.getElementById('admin-game-id').value;
+            const adminGameName = document.getElementById('اسی').value;
+            const adminGameId = document.getElementById('ctndhivvmr').value;
 
             if (adminGameName === adminCredentials.gameName && adminGameId === adminCredentials.gameId) {
                 document.getElementById('form-container').style.display = 'none';
