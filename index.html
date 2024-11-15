@@ -65,11 +65,23 @@
             border: none;
             cursor: pointer;
         }
+        .search-btn {
+            margin-top: 20px;
+            padding: 10px 20px;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        .search-input {
+            margin: 10px;
+            padding: 10px;
+        }
     </style>
 </head>
 <body>
     <div id="form-container">
-        <h2>ثبت اطلاعات یا ورود به حساب</h2>
+        <h2>ثبت اطلاعات</h2>
         <div class="input-container">
             <label for="game-name">اسم بازی</label>
             <input type="text" id="game-name" class="input-box">
@@ -93,27 +105,14 @@
     <!-- بخش ادمین -->
     <div class="admin-section" id="admin-section">
         <h2>پنل ادمین</h2>
-        <button class="btn" onclick="toggleAddUser()">افزودن کاربران</button>
-        <div id="add-user-container" style="display: none;">
-            <h3>افزودن کاربر جدید</h3>
-            <div class="input-container">
-                <label for="new-user-name">اسم بازی</label>
-                <input type="text" id="new-user-name" class="input-box">
-            </div>
-            <div class="input-container">
-                <label for="new-user-id">شناسه بازی</label>
-                <input type="text" id="new-user-id" class="input-box">
-            </div>
-            <button class="btn" onclick="addUser()">افزودن کاربر</button>
-        </div>
+        <p>برای مدیریت کاربران، از این بخش استفاده کنید.</p>
 
-        <h3>لینک دعوت برای تغییر</h3>
-        <div class="input-container">
-            <label for="filter-code">کد دعوت (برای مشاهده کاربران):</label>
-            <input type="text" id="filter-code" class="input-box" placeholder="0000 برای همه کاربران">
-        </div>
+        <h3>جستجوی کاربر با کد دعوت</h3>
+        <input type="text" id="search-code" class="search-input" placeholder="کد دعوت را وارد کنید">
+        <button class="search-btn" onclick="searchUserByInviteCode()">جستجو</button>
+
+        <h3>لیست کاربران ثبت‌شده</h3>
         <div class="user-list" id="user-list"></div>
-
         <button class="logout-btn" onclick="logout()">خروج از پنل ادمین</button>
     </div>
 
@@ -149,19 +148,29 @@
             let gameName = document.getElementById('game-name').value;
             let gameId = document.getElementById('game-id').value;
 
-            if(gameName && gameId) {
-                const inviteCode = gameId + '-' + Math.random().toString(36).substring(2, 15);
-                let user = { gameName, gameId, inviteCode, inviteCount: 0 };
-                users.push(user);
-
-                // ذخیره‌سازی در localStorage
-                localStorage.setItem('users', JSON.stringify(users));
-                localStorage.setItem('userData', JSON.stringify(user));
-
+            // بررسی تکراری بودن اطلاعات
+            const existingUser = users.find(user => user.gameName === gameName && user.gameId === gameId);
+            if (existingUser) {
+                localStorage.setItem('userData', JSON.stringify(existingUser));
                 document.getElementById('form-container').style.display = 'none';
                 document.getElementById('code-container').style.display = 'block';
-                document.getElementById('invite-code').textContent = inviteCode;
-                document.getElementById('invite-count').textContent = inviteCount;
+                document.getElementById('invite-code').textContent = existingUser.inviteCode;
+                document.getElementById('invite-count').textContent = existingUser.inviteCount;
+            } else {
+                if(gameName && gameId) {
+                    const inviteCode = gameId + '-' + Math.random().toString(36).substring(2, 15);
+                    let user = { gameName, gameId, inviteCode, inviteCount: 0 };
+                    users.push(user);
+
+                    // ذخیره‌سازی در localStorage
+                    localStorage.setItem('users', JSON.stringify(users));
+                    localStorage.setItem('userData', JSON.stringify(user));
+
+                    document.getElementById('form-container').style.display = 'none';
+                    document.getElementById('code-container').style.display = 'block';
+                    document.getElementById('invite-code').textContent = inviteCode;
+                    document.getElementById('invite-count').textContent = inviteCount;
+                }
             }
         }
 
@@ -173,48 +182,50 @@
             });
         }
 
-        // افزودن کاربر جدید توسط ادمین
-        function addUser() {
-            let newUserName = document.getElementById('new-user-name').value;
-            let newUserId = document.getElementById('new-user-id').value;
-            const inviteCode = newUserId + '-' + Math.random().toString(36).substring(2, 15);
-
-            if (newUserName && newUserId) {
-                let newUser = { gameName: newUserName, gameId: newUserId, inviteCode, inviteCount: 0 };
-                users.push(newUser);
-
-                // ذخیره‌سازی جدید در localStorage
-                localStorage.setItem('users', JSON.stringify(users));
-
-                showUserList();  // نمایش دوباره لیست کاربران
+        // جستجو کاربر با کد دعوت
+        function searchUserByInviteCode() {
+            const searchCode = document.getElementById('search-code').value;
+            const user = users.find(user => user.inviteCode === searchCode);
+            if (user) {
+                alert(`کاربر پیدا شد: ${user.gameName}, شناسه: ${user.gameId}, کد دعوت: ${user.inviteCode}`);
+            } else {
+                alert('کاربر با این کد دعوت پیدا نشد!');
             }
         }
 
-        // نمایش لیست کاربران با فیلتر
+        // نمایش لیست کاربران و امکان حذف
         function showUserList() {
-            const filterCode = document.getElementById('filter-code').value;
             const userListContainer = document.getElementById('user-list');
             userListContainer.innerHTML = '';
-
-            let filteredUsers = users;
-            if (filterCode !== '0000') {
-                filteredUsers = users.filter(user => user.inviteCode.includes(filterCode));
-            }
-
-            filteredUsers.forEach((user) => {
+            users.forEach((user, index) => {
                 let userItem = document.createElement('div');
                 userItem.classList.add('user-item');
                 userItem.innerHTML = `
-                    <span>نام بازی: ${user.gameName}, شناسه: ${user.gameId}, تعداد دعوت‌ها: ${user.inviteCount}</span>
+                    <span>نام: ${user.gameName}, شناسه: ${user.gameId}, کد دعوت: ${user.inviteCode}</span>
+                    <button onclick="deleteUser(${index})">حذف</button>
+                    <button onclick="editUser(${index})">ویرایش</button>
                 `;
                 userListContainer.appendChild(userItem);
             });
         }
 
-        // نمایش یا مخفی کردن بخش افزودن کاربر
-        function toggleAddUser() {
-            const addUserContainer = document.getElementById('add-user-container');
-            addUserContainer.style.display = addUserContainer.style.display === 'none' ? 'block' : 'none';
+        // ویرایش اطلاعات کاربر
+        function editUser(userIndex) {
+            const user = users[userIndex];
+            const newInviteCount = prompt('تعداد دعوت‌ها را وارد کنید:', user.inviteCount);
+            if (newInviteCount !== null && !isNaN(newInviteCount)) {
+                users[userIndex].inviteCount = parseInt(newInviteCount);
+                localStorage.setItem('users', JSON.stringify(users));
+                showUserList();  // به‌روزرسانی لیست کاربران
+            }
+        }
+
+        // حذف کاربر
+                // حذف کاربر
+        function deleteUser(userIndex) {
+            users.splice(userIndex, 1);  // حذف کاربر از آرایه
+            localStorage.setItem('users', JSON.stringify(users));  // ذخیره تغییرات در localStorage
+            showUserList();  // به‌روزرسانی لیست کاربران
         }
 
         // خروج از حساب کاربری یا پنل ادمین
@@ -227,3 +238,4 @@
     </script>
 </body>
 </html>
+
