@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="fa">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>صفحه ثبت و ادمین</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            padding: 50px;
+        }
+        .input-container {
+            margin: 10px 0;
+        }
+        .input-box {
+            padding: 10px;
+            width: 80%;
+            margin-top: 5px;
+        }
+        .btn {
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        .code-box {
+            padding: 20px;
+            background-color: #f0f0f0;
+            border-radius: 50px;
+            display: inline-block;
+            margin-top: 20px;
+        }
+        .invites {
+            margin-top: 20px;
+        }
+        .admin-section {
+            display: none;
+            margin-top: 50px;
+        }
+        .user-list {
+            margin-top: 20px;
+        }
+        .user-item {
+            margin: 10px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .user-item button {
+            padding: 5px 10px;
+            background-color: #f39c12;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div id="form-container">
+        <h2>ثبت اطلاعات</h2>
+        <div class="input-container">
+            <label for="game-name">اسم بازی</label>
+            <input type="text" id="game-name" class="input-box">
+        </div>
+        <div class="input-container">
+            <label for="game-id">شناسه بازی</label>
+            <input type="text" id="game-id" class="input-box">
+        </div>
+        <button class="btn" onclick="saveData()">تایید</button>
+    </div>
+
+    <div id="code-container" style="display: none;">
+        <h2>کد دعوت شما</h2>
+        <div class="code-box" id="invite-code" onclick="copyCode()">کد دعوت</div>
+        <div class="invites">
+            <p>تعداد دعوت‌ها: <span id="invite-count">0</span></p>
+            <p>تعداد افرادی که ادمین تعیین کرده: <span id="admin-count">0</span></p>
+        </div>
+    </div>
+
+    <!-- بخش ادمین -->
+    <div class="admin-section" id="admin-section">
+        <h2>پنل ادمین</h2>
+        <p>برای دسترسی به پنل ادمین، باید شناسه بازی و نام بازی را وارد کنید:</p>
+        <div class="input-container">
+            <label for="admin-game-name">اسم بازی</label>
+            <input type="text" id="admin-game-name" class="input-box">
+        </div>
+        <div class="input-container">
+            <label for="admin-game-id">شناسه بازی</label>
+            <input type="text" id="admin-game-id" class="input-box">
+        </div>
+        <button class="btn" onclick="adminLogin()">ورود به پنل ادمین</button>
+
+        <div class="user-list" id="user-list"></div>
+    </div>
+
+    <script>
+        let inviteCount = 0;
+        let adminCount = 0;
+        let inviteCode = '';
+        let users = JSON.parse(localStorage.getItem('users')) || [];
+        const adminCredentials = { gameName: 'اسی', gameId: 'ctndhivvmr' };
+
+        // ذخیره اطلاعات کاربر
+        function saveData() {
+            let gameName = document.getElementById('game-name').value;
+            let gameId = document.getElementById('game-id').value;
+
+            if(gameName && gameId) {
+                inviteCode = gameId + '-' + Math.random().toString(36).substring(2, 15);
+                let user = { gameName, gameId, inviteCode, invites: 0 };
+                users.push(user);
+
+                // ذخیره‌سازی در localStorage
+                localStorage.setItem('users', JSON.stringify(users));
+                localStorage.setItem('inviteCount', inviteCount);
+                localStorage.setItem('adminCount', adminCount);
+
+                document.getElementById('form-container').style.display = 'none';
+                document.getElementById('code-container').style.display = 'block';
+                document.getElementById('invite-code').textContent = inviteCode;
+                document.getElementById('invite-count').textContent = inviteCount;
+                document.getElementById('admin-count').textContent = adminCount;
+            }
+        }
+
+        // کپی کردن کد دعوت
+        function copyCode() {
+            const code = document.getElementById('invite-code').textContent;
+            navigator.clipboard.writeText(code).then(() => {
+                alert('کد دعوت کپی شد!');
+            });
+        }
+
+        // ورود به پنل ادمین
+        function adminLogin() {
+            const adminGameName = document.getElementById('admin-game-name').value;
+            const adminGameId = document.getElementById('admin-game-id').value;
+
+            if (adminGameName === adminCredentials.gameName && adminGameId === adminCredentials.gameId) {
+                document.getElementById('form-container').style.display = 'none';
+                document.getElementById('admin-section').style.display = 'block';
+                showUserList();
+            } else {
+                alert('شناسه یا نام بازی اشتباه است!');
+            }
+        }
+
+        // نمایش لیست کاربران
+        function showUserList() {
+            const userListContainer = document.getElementById('user-list');
+            userListContainer.innerHTML = '';
+            users.forEach((user, index) => {
+                let userItem = document.createElement('div');
+                userItem.classList.add('user-item');
+                userItem.innerHTML = `
+                    <span>نام بازی: ${user.gameName}, شناسه: ${user.gameId}, تعداد دعوت‌ها: ${user.invites}</span>
+                    <button onclick="changeInviteCount(${index})">تغییر تعداد دعوت‌ها</button>
+                `;
+                userListContainer.appendChild(userItem);
+            });
+        }
+
+        // تغییر تعداد دعوت‌ها
+        function changeInviteCount(userIndex) {
+            let newInviteCount = prompt('تعداد دعوت‌ها را وارد کنید:', users[userIndex].invites);
+            if (newInviteCount !== null && !isNaN(newInviteCount)) {
+                users[userIndex].invites = parseInt(newInviteCount);
+                localStorage.setItem('users', JSON.stringify(users));
+                showUserList();  // دوباره لیست را نمایش می‌دهیم
+            }
+        }
+    </script>
+</body>
+</html>
