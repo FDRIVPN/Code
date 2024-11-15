@@ -39,24 +39,6 @@
             display: none;
             margin-top: 50px;
         }
-        .user-list {
-            margin-top: 20px;
-        }
-        .user-item {
-            margin: 10px;
-            padding: 10px;
-            border: 1px solid #ddd;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        .user-item button {
-            padding: 5px 10px;
-            background-color: #f39c12;
-            color: white;
-            border: none;
-            cursor: pointer;
-        }
         .logout-btn {
             margin-top: 20px;
             padding: 10px 20px;
@@ -76,6 +58,15 @@
         .search-input {
             margin: 10px;
             padding: 10px;
+        }
+        .user-info {
+            margin: 20px;
+            padding: 10px;
+            border: 1px solid #ddd;
+        }
+        .user-info span {
+            display: block;
+            margin: 10px 0;
         }
     </style>
 </head>
@@ -105,14 +96,15 @@
     <!-- بخش ادمین -->
     <div class="admin-section" id="admin-section">
         <h2>پنل ادمین</h2>
-        <p>برای مدیریت کاربران، از این بخش استفاده کنید.</p>
-
-        <h3>جستجوی کاربر با کد دعوت</h3>
+        <p>برای جستجو کاربران، کد دعوت را وارد کنید:</p>
         <input type="text" id="search-code" class="search-input" placeholder="کد دعوت را وارد کنید">
         <button class="search-btn" onclick="searchUserByInviteCode()">جستجو</button>
+    </div>
 
-        <h3>لیست کاربران ثبت‌شده</h3>
-        <div class="user-list" id="user-list"></div>
+    <!-- لیست کاربران -->
+    <div id="user-list-container" style="display: none;">
+        <h2>لیست کاربران ثبت‌شده</h2>
+        <div id="user-info-container"></div>
         <button class="logout-btn" onclick="logout()">خروج از پنل ادمین</button>
     </div>
 
@@ -132,7 +124,6 @@
                 // اگر ادمین باشد، نمایش پنل ادمین
                 if (user.gameName === adminCredentials.gameName && user.gameId === adminCredentials.gameId) {
                     document.getElementById('admin-section').style.display = 'block';
-                    showUserList();
                 } else {
                     document.getElementById('code-container').style.display = 'block';
                     document.getElementById('invite-code').textContent = user.inviteCode;
@@ -185,28 +176,39 @@
         // جستجو کاربر با کد دعوت
         function searchUserByInviteCode() {
             const searchCode = document.getElementById('search-code').value;
-            const user = users.find(user => user.inviteCode === searchCode);
-            if (user) {
-                alert(`کاربر پیدا شد: ${user.gameName}, شناسه: ${user.gameId}, کد دعوت: ${user.inviteCode}`);
+            const userListContainer = document.getElementById('user-info-container');
+            userListContainer.innerHTML = '';  // پاک کردن اطلاعات قبلی
+
+            if (searchCode === '0000') {
+                // نمایش تمام کاربران ثبت‌شده
+                users.forEach(user => {
+                    displayUserInfo(user);
+                });
             } else {
-                alert('کاربر با این کد دعوت پیدا نشد!');
+                const user = users.find(user => user.inviteCode === searchCode);
+                if (user) {
+                    displayUserInfo(user);
+                } else {
+                    userListContainer.innerHTML = 'کاربر با این کد دعوت پیدا نشد!';
+                }
             }
+
+            document.getElementById('user-list-container').style.display = 'block'; // نمایش لیست
         }
 
-        // نمایش لیست کاربران و امکان حذف
-        function showUserList() {
-            const userListContainer = document.getElementById('user-list');
-            userListContainer.innerHTML = '';
-            users.forEach((user, index) => {
-                let userItem = document.createElement('div');
-                userItem.classList.add('user-item');
-                userItem.innerHTML = `
-                    <span>نام: ${user.gameName}, شناسه: ${user.gameId}, کد دعوت: ${user.inviteCode}</span>
-                    <button onclick="deleteUser(${index})">حذف</button>
-                    <button onclick="editUser(${index})">ویرایش</button>
-                `;
-                userListContainer.appendChild(userItem);
-            });
+        // نمایش اطلاعات کاربر
+        function displayUserInfo(user) {
+            const userInfoContainer = document.getElementById('user-info-container');
+            const userInfoDiv = document.createElement('div');
+            userInfoDiv.classList.add('user-info');
+            userInfoDiv.innerHTML = `
+                <span>نام بازی: ${user.gameName}</span>
+                <span>شناسه بازی: ${user.gameId}</span>
+                <span>کد دعوت: ${user.inviteCode}</span>
+                <button onclick="editUser(${users.indexOf(user)})">ویرایش</button>
+                <button onclick="deleteUser(${users.indexOf(user)})">حذف</button>
+            `;
+            userInfoContainer.appendChild(userInfoDiv);
         }
 
         // ویرایش اطلاعات کاربر
@@ -216,26 +218,25 @@
             if (newInviteCount !== null && !isNaN(newInviteCount)) {
                 users[userIndex].inviteCount = parseInt(newInviteCount);
                 localStorage.setItem('users', JSON.stringify(users));
-                showUserList();  // به‌روزرسانی لیست کاربران
+                searchUserByInviteCode();  // دوباره جستجو و نمایش
             }
         }
 
         // حذف کاربر
-                // حذف کاربر
         function deleteUser(userIndex) {
-            users.splice(userIndex, 1);  // حذف کاربر از آرایه
-            localStorage.setItem('users', JSON.stringify(users));  // ذخیره تغییرات در localStorage
-            showUserList();  // به‌روزرسانی لیست کاربران
+            users.splice(userIndex, 1);
+            localStorage.setItem('users', JSON.stringify(users));
+            searchUserByInviteCode();  // دوباره جستجو و نمایش
         }
 
         // خروج از حساب کاربری یا پنل ادمین
         function logout() {
-            localStorage.removeItem('userData');  // حذف اطلاعات کاربر از localStorage
+            localStorage.removeItem('userData');
             document.getElementById('code-container').style.display = 'none';
             document.getElementById('admin-section').style.display = 'none';
-            document.getElementById('form-container').style.display = 'block';  // بازگشت به صفحه اصلی
+            document.getElementById('user-list-container').style.display = 'none';
+            document.getElementById('form-container').style.display = 'block';
         }
     </script>
 </body>
 </html>
-
