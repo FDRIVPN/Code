@@ -39,6 +39,24 @@
             display: none;
             margin-top: 50px;
         }
+        .user-list {
+            margin-top: 20px;
+        }
+        .user-item {
+            margin: 10px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .user-item button {
+            padding: 5px 10px;
+            background-color: #f39c12;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
         .logout-btn {
             margin-top: 20px;
             padding: 10px 20px;
@@ -46,27 +64,6 @@
             color: white;
             border: none;
             cursor: pointer;
-        }
-        .search-btn {
-            margin-top: 20px;
-            padding: 10px 20px;
-            background-color: #3498db;
-            color: white;
-            border: none;
-            cursor: pointer;
-        }
-        .search-input {
-            margin: 10px;
-            padding: 10px;
-        }
-        .user-info {
-            margin: 20px;
-            padding: 10px;
-            border: 1px solid #ddd;
-        }
-        .user-info span {
-            display: block;
-            margin: 10px 0;
         }
     </style>
 </head>
@@ -96,15 +93,18 @@
     <!-- بخش ادمین -->
     <div class="admin-section" id="admin-section">
         <h2>پنل ادمین</h2>
-        <p>برای جستجو کاربران، کد دعوت را وارد کنید:</p>
-        <input type="text" id="search-code" class="search-input" placeholder="کد دعوت را وارد کنید">
-        <button class="search-btn" onclick="searchUserByInviteCode()">جستجو</button>
-    </div>
+        <p>برای اضافه کردن یا حذف کردن کاربران، از این بخش استفاده کنید.</p>
 
-    <!-- لیست کاربران -->
-    <div id="user-list-container" style="display: none;">
-        <h2>لیست کاربران ثبت‌شده</h2>
-        <div id="user-info-container"></div>
+        <h3>جستجو بر اساس کد دعوت</h3>
+        <div class="input-container">
+            <input type="text" id="search-code" class="input-box" placeholder="کد دعوت را وارد کنید...">
+        </div>
+        <button class="btn" onclick="searchUserByInviteCode()">جستجو</button>
+
+        <div id="user-list-container" style="display: none;">
+            <h3>لیست کاربران ثبت‌شده</h3>
+            <div class="user-list" id="user-list"></div>
+        </div>
         <button class="logout-btn" onclick="logout()">خروج از پنل ادمین</button>
     </div>
 
@@ -150,7 +150,7 @@
             } else {
                 if(gameName && gameId) {
                     const inviteCode = gameId + '-' + Math.random().toString(36).substring(2, 15);
-                    let user = { gameName, gameId, inviteCode, inviteCount: 0 };
+                    let user = { gameName, gameId, inviteCode, inviteCount: 0 }; // تعداد دعوت‌ها باید 0 باشد
                     users.push(user);
 
                     // ذخیره‌سازی در localStorage
@@ -173,48 +173,46 @@
             });
         }
 
-        // جستجو کاربر با کد دعوت
+        // جستجو بر اساس کد دعوت
         function searchUserByInviteCode() {
             const searchCode = document.getElementById('search-code').value;
-            const userListContainer = document.getElementById('user-info-container');
-            userListContainer.innerHTML = '';  // پاک کردن اطلاعات قبلی
-
+            let filteredUsers = [];
             if (searchCode === '0000') {
-                // نمایش تمام کاربران ثبت‌شده
-                users.forEach(user => {
-                    displayUserInfo(user);
-                });
+                filteredUsers = users;
             } else {
-                const user = users.find(user => user.inviteCode === searchCode);
-                if (user) {
-                    displayUserInfo(user);
-                } else {
-                    userListContainer.innerHTML = 'کاربر با این کد دعوت پیدا نشد!';
-                }
+                filteredUsers = users.filter(user => user.inviteCode.includes(searchCode));
             }
 
-            document.getElementById('user-list-container').style.display = 'block'; // نمایش لیست
+            if (filteredUsers.length > 0) {
+                showUserList(filteredUsers);
+            } else {
+                alert('کاربری با این کد دعوت پیدا نشد!');
+            }
         }
 
-        // نمایش اطلاعات کاربر
-        function displayUserInfo(user) {
-            const userInfoContainer = document.getElementById('user-info-container');
-            const userInfoDiv = document.createElement('div');
-            userInfoDiv.classList.add('user-info');
-            userInfoDiv.innerHTML = `
-                <span>نام بازی: ${user.gameName}</span>
-                <span>شناسه بازی: ${user.gameId}</span>
-                <span>کد دعوت: ${user.inviteCode}</span>
-                <button onclick="editUser(${users.indexOf(user)})">ویرایش</button>
-                <button onclick="deleteUser(${users.indexOf(user)})">حذف</button>
-            `;
-            userInfoContainer.appendChild(userInfoDiv);
+        // نمایش لیست کاربران
+        function showUserList(filteredUsers) {
+            const userListContainer = document.getElementById('user-list');
+            userListContainer.innerHTML = '';
+            filteredUsers.forEach((user, index) => {
+                let userItem = document.createElement('div');
+                userItem.classList.add('user-item');
+                userItem.innerHTML = `
+                    <div>نام: ${user.gameName}</div>
+                    <div>شناسه: ${user.gameId}</div>
+                    <div>کد دعوت: ${user.inviteCode}</div>
+                    <button onclick="changeInviteCount(${index})">تغییر تعداد دعوت‌ها</button>
+                    <button onclick="deleteUser(${index})">حذف</button>
+                `;
+                userListContainer.appendChild(userItem);
+            });
+
+            document.getElementById('user-list-container').style.display = 'block';
         }
 
-        // ویرایش اطلاعات کاربر
-        function editUser(userIndex) {
-            const user = users[userIndex];
-            const newInviteCount = prompt('تعداد دعوت‌ها را وارد کنید:', user.inviteCount);
+        // تغییر تعداد دعوت‌ها
+        function changeInviteCount(userIndex) {
+            let newInviteCount = prompt('تعداد دعوت‌ها را وارد کنید:', users[userIndex].inviteCount);
             if (newInviteCount !== null && !isNaN(newInviteCount)) {
                 users[userIndex].inviteCount = parseInt(newInviteCount);
                 localStorage.setItem('users', JSON.stringify(users));
@@ -229,14 +227,16 @@
             searchUserByInviteCode();  // دوباره جستجو و نمایش
         }
 
-        // خروج از حساب کاربری یا پنل ادمین
+        // خروج از حساب کاربری یا پنل 
+                // خروج از حساب کاربری یا پنل ادمین
         function logout() {
             localStorage.removeItem('userData');
+            document.getElementById('form-container').style.display = 'block';
             document.getElementById('code-container').style.display = 'none';
             document.getElementById('admin-section').style.display = 'none';
             document.getElementById('user-list-container').style.display = 'none';
-            document.getElementById('form-container').style.display = 'block';
         }
     </script>
 </body>
 </html>
+
