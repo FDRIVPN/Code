@@ -155,7 +155,8 @@
     </div>
 
     <script>
-        let users = {}; // شیء جدید برای ذخیره اطلاعات کاربران
+        // بارگذاری کاربران از localStorage
+        let users = JSON.parse(localStorage.getItem('users')) || {}; 
         let currentUser = null;
 
         function toggleMenu() {
@@ -185,6 +186,10 @@
             const inviteCode = `${password}-${Math.random().toString(36).substring(2, 8)}`;
             users[username] = { username, password, inviteCode, invites: 0, reward: 0 };
             currentUser = users[username];
+
+            // ذخیره اطلاعات کاربران در localStorage
+            localStorage.setItem('users', JSON.stringify(users));
+
             loadUserDashboard();
         }
 
@@ -231,6 +236,7 @@
 
         function deleteUser(username) {
             delete users[username];
+            localStorage.setItem('users', JSON.stringify(users)); // ذخیره تغییرات در localStorage
             loadAdminPanel();
         }
 
