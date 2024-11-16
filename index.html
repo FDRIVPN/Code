@@ -38,10 +38,6 @@
             cursor: pointer;
             margin-top: 20px;
         }
-        .btn:disabled {
-            background-color: #ccc;
-            cursor: not-allowed;
-        }
         .menu-icon {
             position: absolute;
             top: 20px;
@@ -159,7 +155,7 @@
     </div>
 
     <script>
-        let users = JSON.parse(localStorage.getItem('users')) || [];
+        let users = {}; // شیء جدید برای ذخیره اطلاعات کاربران
         let currentUser = null;
 
         function toggleMenu() {
@@ -181,17 +177,14 @@
                 return;
             }
 
-            const existingUser = users.find(user => user.username === username || user.password === password);
-            if (existingUser) {
+            if (users[username] || Object.values(users).find(user => user.password === password)) {
                 alert('این اسم یا شناسه قبلاً ثبت شده است!');
                 return;
             }
 
             const inviteCode = `${password}-${Math.random().toString(36).substring(2, 8)}`;
-            const user = { username, password, inviteCode, invites: 0, reward: 0 };
-            users.push(user);
-            localStorage.setItem('users', JSON.stringify(users));
-            currentUser = user;
+            users[username] = { username, password, inviteCode, invites: 0, reward: 0 };
+            currentUser = users[username];
             loadUserDashboard();
         }
 
@@ -221,7 +214,8 @@
             document.getElementById('admin-panel').style.display = 'block';
             const userList = document.getElementById('user-list');
             userList.innerHTML = '';
-            users.forEach((user, index) => {
+            for (let username in users) {
+                const user = users[username];
                 const userItem = document.createElement('div');
                 userItem.classList.add('user-item');
                 userItem.innerHTML = `
@@ -229,21 +223,20 @@
                     <p>شناسه: ${user.password}</p>
                     <p>تعداد دعوت‌ها: ${user.invites}</p>
                     <p>جایزه: ${user.invites * 200}</p>
-                    <button class="delete" onclick="deleteUser(${index})">حذف</button>
+                    <button class="delete" onclick="deleteUser('${username}')">حذف</button>
                 `;
                 userList.appendChild(userItem);
-            });
+            }
         }
 
-        function deleteUser(index) {
-            users.splice(index, 1);
-            localStorage.setItem('users', JSON.stringify(users));
+        function deleteUser(username) {
+            delete users[username];
             loadAdminPanel();
         }
 
         function searchUser() {
             const searchCode = document.getElementById('search-code').value.trim();
-            const user = users.find(user => user.inviteCode === searchCode);
+            const user = Object.values(users).find(user => user.inviteCode === searchCode);
             if (!user) {
                 alert('کاربری با این کد دعوت وجود ندارد!');
                 return;
