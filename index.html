@@ -155,8 +155,7 @@
     </div>
 
     <script>
-        // بارگذاری کاربران از localStorage
-        let users = JSON.parse(localStorage.getItem('users')) || {}; 
+        let users = JSON.parse(localStorage.getItem('users')) || []; 
         let currentUser = null;
 
         function toggleMenu() {
@@ -178,14 +177,15 @@
                 return;
             }
 
-            if (users[username] || Object.values(users).find(user => user.password === password)) {
+            if (users.some(user => user.username === username || user.password === password)) {
                 alert('این اسم یا شناسه قبلاً ثبت شده است!');
                 return;
             }
 
             const inviteCode = `${password}-${Math.random().toString(36).substring(2, 8)}`;
-            users[username] = { username, password, inviteCode, invites: 0, reward: 0 };
-            currentUser = users[username];
+            const newUser = { username, password, inviteCode, invites: 0, reward: 0 };
+            users.push(newUser);
+            currentUser = newUser;
 
             // ذخیره اطلاعات کاربران در localStorage
             localStorage.setItem('users', JSON.stringify(users));
@@ -219,8 +219,7 @@
             document.getElementById('admin-panel').style.display = 'block';
             const userList = document.getElementById('user-list');
             userList.innerHTML = '';
-            for (let username in users) {
-                const user = users[username];
+            users.forEach(user => {
                 const userItem = document.createElement('div');
                 userItem.classList.add('user-item');
                 userItem.innerHTML = `
@@ -228,21 +227,21 @@
                     <p>شناسه: ${user.password}</p>
                     <p>تعداد دعوت‌ها: ${user.invites}</p>
                     <p>جایزه: ${user.invites * 200}</p>
-                    <button class="delete" onclick="deleteUser('${username}')">حذف</button>
+                    <button class="delete" onclick="deleteUser('${user.username}')">حذف</button>
                 `;
                 userList.appendChild(userItem);
-            }
+            });
         }
 
         function deleteUser(username) {
-            delete users[username];
+            users = users.filter(user => user.username !== username);
             localStorage.setItem('users', JSON.stringify(users)); // ذخیره تغییرات در localStorage
             loadAdminPanel();
         }
 
         function searchUser() {
             const searchCode = document.getElementById('search-code').value.trim();
-            const user = Object.values(users).find(user => user.inviteCode === searchCode);
+            const user = users.find(user => user.inviteCode === searchCode);
             if (!user) {
                 alert('کاربری با این کد دعوت وجود ندارد!');
                 return;
