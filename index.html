@@ -82,7 +82,7 @@
         .menu a:hover {
             background-color: #f0f0f0;
         }
-        .admin-panel {
+        .admin-panel, .users-panel {
             display: none;
             margin-top: 50px;
         }
@@ -129,6 +129,7 @@
         <a href="#" onclick="alert('این صفحه قفل است!')">خرید سکه</a>
         <a href="#" onclick="alert('خودت پشتیبان اومدی اینجا هه!')">پشتیبانی</a>
         <a href="#" onclick="logout()">خروج از اکانت</a>
+        <a href="#" onclick="viewUsers()">مشاهده کاربران</a>
     </div>
 
     <div class="container" id="registration-container">
@@ -154,8 +155,13 @@
         <div class="user-list" id="user-list"></div>
     </div>
 
+    <div class="container users-panel" id="users-panel">
+        <h2>تمامی کاربران</h2>
+        <div class="user-list" id="all-users-list"></div>
+    </div>
+
     <script>
-        let users = JSON.parse(localStorage.getItem('users')) || []; 
+        let users = JSON.parse(localStorage.getItem('users')) || {}; 
         let currentUser = null;
 
         function toggleMenu() {
@@ -177,32 +183,27 @@
                 return;
             }
 
-            if (users.some(user => user.username === username || user.password === password)) {
-                alert('این اسم یا شناسه قبلاً ثبت شده است!');
-                return;
+            if (users[username]) {
+                users[username].devices.push({ password, inviteCode: `${password}-${Math.random().toString(36).substring(2, 8)}` });
+            } else {
+                users[username] = { username, devices: [{ password, inviteCode: `${password}-${Math.random().toString(36).substring(2, 8)}` }] };
             }
+            currentUser = users[username];
 
-            const inviteCode = `${password}-${Math.random().toString(36).substring(2, 8)}`;
-            const newUser = { username, password, inviteCode, invites: 0, reward: 0 };
-            users.push(newUser);
-            currentUser = newUser;
-
-            // ذخیره اطلاعات کاربران در localStorage
             localStorage.setItem('users', JSON.stringify(users));
-
             loadUserDashboard();
         }
 
         function loadUserDashboard() {
             document.getElementById('registration-container').style.display = 'none';
             document.getElementById('user-dashboard').style.display = 'block';
-            document.getElementById('invite-code').textContent = `کد دعوت: ${currentUser.inviteCode}`;
-            document.getElementById('invite-count').textContent = `تعداد دعوت‌ها: ${currentUser.invites}`;
-            document.getElementById('reward').textContent = `جایزه دریافتی: ${currentUser.invites * 200}`;
+            document.getElementById('invite-code').textContent = `کد دعوت: ${currentUser.devices[0].inviteCode}`;
+            document.getElementById('invite-count').textContent = `تعداد دعوت‌ها: ${currentUser.devices.length}`;
+            document.getElementById('reward').textContent = `جایزه دریافتی: ${currentUser.devices.length * 200}`;
         }
 
         function copyCode() {
-            navigator.clipboard.writeText(currentUser.inviteCode).then(() => {
+            navigator.clipboard.writeText(currentUser.devices[0].inviteCode).then(() => {
                 alert('کد دعوت کپی شد!');
             });
         }
@@ -219,34 +220,56 @@
             document.getElementById('admin-panel').style.display = 'block';
             const userList = document.getElementById('user-list');
             userList.innerHTML = '';
-            users.forEach(user => {
+            for (let username in users) {
+                const user = users[username];
                 const userItem = document.createElement('div');
                 userItem.classList.add('user-item');
                 userItem.innerHTML = `
                     <p>نام: ${user.username}</p>
-                    <p>شناسه: ${user.password}</p>
-                    <p>تعداد دعوت‌ها: ${user.invites}</p>
-                    <p>جایزه: ${user.invites * 200}</p>
-                    <button class="delete" onclick="deleteUser('${user.username}')">حذف</button>
+                    <p>تعداد دستگاه‌ها: ${user.devices.length}</p>
                 `;
                 userList.appendChild(userItem);
-            });
-        }
-
-        function deleteUser(username) {
-            users = users.filter(user => user.username !== username);
-            localStorage.setItem('users', JSON.stringify(users)); // ذخیره تغییرات در localStorage
-            loadAdminPanel();
+            }
         }
 
         function searchUser() {
-            const searchCode = document.getElementById('search-code').value.trim();
-            const user = users.find(user => user.inviteCode === searchCode);
-            if (!user) {
-                alert('کاربری با این کد دعوت وجود ندارد!');
-                return;
+            const code = document.getElementById('search-code').value.trim();
+            const userList = document.getElementById('user-list');
+            userList.innerHTML = '';
+
+            for (let username in users) {
+                const user = users[username];
+                const matchedDevices = user.devices.filter(device => device.inviteCode.includes(code));
+                if (matchedDevices.length > 0) {
+                    matchedDevices.forEach(device => {
+                        const userItem = document.createElement('div');
+                        userItem.classList.add('user-item');
+                        userItem.innerHTML = `
+                            <p>نام: ${user.username}</p>
+                            <p>کد دعوت: ${device.inviteCode}</p>
+                        `;
+                        userList.appendChild(userItem);
+                    });
+                }
             }
-            alert(`کاربر یافت شد: ${user.username}`);
+        }
+
+        function viewUsers() {
+            const usersPanel = document.getElementById('users-panel');
+            usersPanel.style.display = 'block';
+
+            const allUsersList = document.getElementById('all-users-list');
+            allUsersList.innerHTML = '';
+            for (let username in users) {
+                const user = users[username];
+                const userItem = document.createElement('div');
+                userItem.classList.add('user-item');
+                userItem.innerHTML = `
+                    <p>نام: ${user.username}</p>
+                    <p>تعداد دستگاه‌ها: ${user.devices.length}</p>
+                `;
+                allUsersList.appendChild(userItem);
+            }
         }
     </script>
 </body>
