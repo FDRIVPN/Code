@@ -196,7 +196,7 @@
     <!-- منو -->
     <div class="menu" id="menu">
         <div class="close-menu" onclick="closeMenu()">X</div>
-        <button onclick="openPassword()">رمزی</button>
+        <button onclick="openChannel()">رمزی</button>
         <button onclick="changeId()">شناسه اشتباه زدم</button>
         <button onclick="setName()">اسم من</button>
     </div>
@@ -232,6 +232,10 @@
 
         let lastSpinTime = localStorage.getItem('lastSpinTime');
         let coins = parseInt(localStorage.getItem('coins')) || 0;
+        let changeIdAllowed = true; // فقط یکبار اجازه تغییر شناسه
+        let usernameChanged = false; // اگر اسم تغییر کرد
+        let passUsed = false; // برای رمز
+
         const userId = localStorage.getItem('userId');
         const userName = localStorage.getItem('userName');
 
@@ -251,9 +255,52 @@
                 document.getElementById('input-container').style.display = 'none';
                 document.getElementById('wheel-container').style.display = 'block';
                 document.getElementById('user-info').innerText = 'شناسه: ' + inputUserId;
-                return;
+                document.getElementById('coins-text').innerText = coins + " سکه بردی";
             }
-            alert('شناسه قبلاً وارد شده است!');
+        }
+
+        // تغییر شناسه
+        function changeId() {
+            if (changeIdAllowed) {
+                alert('فقط یک‌بار می‌توانید شناسه خود را تغییر دهید.');
+                const newId = prompt('شناسه جدید را وارد کنید:');
+                if (newId && newId !== userId) {
+                    localStorage.setItem('userId', newId);
+                    document.getElementById('user-info').innerText = 'شناسه: ' + newId;
+                    changeIdAllowed = false;
+                }
+            } else {
+                alert('شما فقط یک‌بار می‌توانید شناسه خود را تغییر دهید.');
+            }
+        }
+
+        // وارد کردن رمز
+        function openChannel() {
+            const pass = prompt('رمز را وارد کنید:');
+            if (pass === 'esimk' && !passUsed) {
+                coins += 100;
+                localStorage.setItem('coins', coins);
+                document.getElementById('coins-text').innerText = coins + " سکه بردی";
+                passUsed = true;
+                alert('شما 100 سکه دریافت کردید!');
+            } else if (pass === 'esimk' && passUsed) {
+                alert('شما قبلاً برنده شده‌اید!');
+            } else if (attemptCount < 3) {
+                alert('رمز اشتباه است. رمز در کانال موجود است.');
+                attemptCount++;
+            } else {
+                alert('مهلت شما تمام شده است!');
+            }
+        }
+
+        // نمایش منو
+        function openMenu() {
+            document.getElementById('menu').classList.add('open');
+        }
+
+        // بستن منو
+        function closeMenu() {
+            document.getElementById('menu').classList.remove('open');
         }
 
         // چرخاندن گردونه
@@ -288,17 +335,7 @@
             }, 3000);
         }
 
-        // باز کردن منو
-        function openMenu() {
-            document.getElementById('menu').classList.add('open');
-        }
-
-        // بستن منو
-        function closeMenu() {
-            document.getElementById('menu').classList.remove('open');
-        }
-
-        // به‌روزرسانی تایمر
+        // بروزرسانی تایمر
         setInterval(() => {
             const now = new Date().getTime();
             const timeLeft = (24 * 60 * 60 * 1000) - (now - lastSpinTime);
