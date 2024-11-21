@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>گردونه سکه</title>
+    <title>سکه مجانی</title>
     <style>
         * {
             margin: 0;
@@ -21,16 +21,16 @@
             height: 100vh;
         }
 
-        .input-container, .menu {
+        .input-container {
             position: absolute;
             top: 40%;
             left: 50%;
-            transform: translate(-50%, -50%);
+            transform: translateX(-50%);
             width: 80%;
             max-width: 400px;
             background-color: #d3d3d3;
             padding: 20px;
-            border-radius: 20px;
+            border-radius: 50px;
             text-align: center;
         }
 
@@ -38,7 +38,7 @@
             width: 100%;
             padding: 10px;
             margin: 10px 0;
-            border-radius: 10px;
+            border-radius: 50px;
             border: 1px solid #ccc;
             background-color: white;
         }
@@ -49,25 +49,38 @@
             padding: 10px 20px;
             font-size: 18px;
             border: none;
-            border-radius: 10px;
+            border-radius: 50px;
             cursor: pointer;
             width: 100%;
         }
 
-        .menu {
-            display: none;
-            background-color: #555;
+        .spin-button {
+            position: absolute;
+            bottom: -70px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 150px;
+            height: 50px;
+            border-radius: 50px;
+            font-size: 18px;
+            font-weight: bold;
+            text-align: center;
+            line-height: 50px;
+            background-color: gray;
             color: white;
+            cursor: pointer;
+            border: none;
+            display: none;
         }
 
-        .menu button {
-            display: block;
-            width: 100%;
-            margin: 10px 0;
-            padding: 10px;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
+        .spin-button:hover {
+            background-color: darkgray;
+        }
+
+        .timer {
+            display: none;
+            font-size: 18px;
+            color: black;
         }
 
         .wheel-container {
@@ -103,131 +116,170 @@
             transform: translateX(-50%);
         }
 
-        .spin-button {
-            margin-top: 20px;
-            background-color: gray;
-            color: white;
-            padding: 10px 20px;
-            font-size: 18px;
-            border: none;
-            border-radius: 10px;
-            cursor: pointer;
+        .oval {
+            position: absolute;
+            width: 120px;
+            height: 50px;
+            background-color: lightgray;
+            border-radius: 25px;
+            line-height: 50px;
+            font-weight: bold;
+            text-align: center;
         }
 
-        .result, .timer, .coins {
-            margin-top: 20px;
-            font-size: 18px;
+        .oval.left {
+            top: 10px;
+            left: 20px;
         }
 
-        .coins {
-            color: green;
+        .oval.right {
+            top: 10px;
+            right: 20px;
+        }
+
+        .result {
+            margin-top: 20px;
+            font-size: 18px;
             font-weight: bold;
         }
+
     </style>
 </head>
 <body>
+    <!-- بیضی‌ها و گردونه -->
+    <div class="oval left" id="user-info"></div>
+    <div class="oval right" id="coins-info">
+        <span id="coins-text">0 سکه بردی</span>
+    </div>
+
+    <!-- صفحه ورود شناسه -->
     <div class="input-container" id="input-container">
         <input type="text" id="user-id" class="input-box" placeholder="شناسه خود را وارد کنید" />
         <button class="confirm-button" onclick="confirmUserId()">تایید</button>
     </div>
 
-    <div class="menu" id="menu">
-        <button onclick="sendToRubika()">برداشت سکه</button>
-        <button onclick="enterPassword()">رمزی</button>
-        <button onclick="changeUserId()">تغییر شناسه</button>
-        <button onclick="changeUserName()">اسم من</button>
-        <button onclick="closeMenu()">بستن منو</button>
-    </div>
-
+    <!-- صفحه گردونه -->
     <div class="wheel-container" id="wheel-container" style="display: none;">
         <div class="pointer"></div>
         <div class="wheel" id="wheel"></div>
         <button class="spin-button" id="spin-btn" onclick="spinWheel()">چرخاندن</button>
         <div class="timer" id="timer"></div>
-        <div class="coins" id="coins">0 سکه</div>
-        <div class="result" id="result"></div>
-        <button onclick="toggleMenu()">منو</button>
+        <div class="result" id="result" style="display: none;"></div>
     </div>
 
     <script>
         let spinning = false;
-        let coins = 0;
-        let lastPrize = 0;
-        const userId = localStorage.getItem('userId') || null;
+        const prizeChances = [
+            { angle: 360, prize: 30, chance: 55 },
+            { angle: 60, prize: 60, chance: 35 },
+            { angle: 120, prize: 90, chance: 2.5 },
+            { angle: 180, prize: 120, chance: 2.5 },
+            { angle: 240, prize: 150, chance: 2.5 },
+            { angle: 300, prize: 180, chance: 2.5 },
+        ];
 
+        let lastSpinTime = localStorage.getItem('lastSpinTime');
+        let coins = parseInt(localStorage.getItem('coins')) || 0;
+        let userId = localStorage.getItem('userId');
+        let hasChangedUsername = localStorage.getItem('hasChangedUsername') === 'true'; // Check if user has changed username already
+
+        // تایید شناسه
         function confirmUserId() {
-            const input = document.getElementById('user-id').value.trim();
-            if (input && !userId) {
-                localStorage.setItem('userId', input);
-                document.getElementById('input-container').style.display = 'none';
-                document.getElementById('wheel-container').style.display = 'block';
+            const inputUserId = document.getElementById('user-id').value.trim();
+            if (inputUserId && !userId) {
+                localStorage.setItem('userId', inputUserId);
+                localStorage.setItem('coins', 0);
+                localStorage.setItem('lastSpinTime', null);
+                localStorage.setItem('hasChangedUsername', 'false');
+                loadWheelPage();
+            } else if (!inputUserId) {
+                alert("لطفا شناسه خود را وارد کنید.");
             } else {
-                alert('شناسه وارد نشده است یا قبلاً ثبت شده است.');
+                alert("شما قبلاً شناسه وارد کرده‌اید.");
             }
         }
 
+        // بارگذاری صفحه گردونه
+        function loadWheelPage() {
+            userId = localStorage.getItem('userId');
+            coins = parseInt(localStorage.getItem('coins')) || 0;
+
+            if (userId) {
+                document.getElementById('user-info').textContent = userId;
+                document.getElementById('coins-text').textContent = `${coins} سکه بردی`;
+                document.getElementById('input-container').style.display = 'none';
+                document.getElementById('wheel-container').style.display = 'block';
+                updateTimer();
+            }
+        }
+
+        // به‌روزرسانی تایمر
+        function updateTimer() {
+            const now = Date.now();
+            const remainingTime = lastSpinTime ? 86400000 - (now - lastSpinTime) : 0;
+            const timerElement = document.getElementById('timer');
+            const spinBtn = document.getElementById('spin-btn');
+
+            if (remainingTime <= 0) {
+                timerElement.style.display = 'none';
+                spinBtn.style.display = 'block';
+                localStorage.setItem('coins', 0); // صفر کردن سکه‌ها
+                document.getElementById('coins-text').textContent = '0 سکه بردی';
+            } else {
+                timerElement.style.display = 'block';
+                spinBtn.style.display = 'none';
+                const hours = Math.floor(remainingTime / 3600000);
+                const minutes = Math.floor((remainingTime % 3600000) / 60000);
+                const seconds = Math.floor((remainingTime % 60000) / 1000);
+                timerElement.textContent = `${hours}:${minutes}:${seconds}`;
+                setTimeout(updateTimer, 1000);
+            }
+        }
+
+        // چرخاندن گردونه
         function spinWheel() {
             if (spinning) return;
             spinning = true;
-            const wheel = document.getElementById('wheel');
-            const prizes = [30, 60, 90, 120, 150, 180];
-            const angles = [360, 60, 120, 180, 240, 300];
-            const randomIndex = Math.floor(Math.random() * prizes.length);
-            const angle = angles[randomIndex];
-            const prize = prizes[randomIndex];
 
-            wheel.style.transform = `rotate(${angle + 3600}deg)`;
+            const wheel = document.getElementById("wheel");
+
+            const selectedPrize = selectPrize();
+            const randomSpin = selectedPrize.angle + 3600;
+            wheel.style.transform = `rotate(${randomSpin}deg)`;
+
             setTimeout(() => {
-                if (prize > lastPrize) {
-                    coins = prize;
-                } else {
-                    coins += prize;
-                }
-                lastPrize = prize;
-
-                document.getElementById('coins').textContent = `${coins} سکه`;
+                coins += selectedPrize.prize;
+                localStorage.setItem('coins', coins);
+                document.getElementById("coins-text").textContent = `${coins} سکه بردی`;
+                document.getElementById('result').textContent = `شما ${selectedPrize.prize} سکه بردید!`;
+                document.getElementById('result').style.display = 'block';
+                lastSpinTime = Date.now();
+                localStorage.setItem('lastSpinTime', lastSpinTime);
                 spinning = false;
+                updateTimer();
             }, 3000);
         }
 
-        function toggleMenu() {
-            const menu = document.getElementById('menu');
-            menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
-        }
+        // انتخاب جایزه
+        function selectPrize() {
+            const random = Math.random() * 100;
+            let cumulativeChance = 0;
 
-        function sendToRubika() {
-            const userId = localStorage.getItem('userId');
-            alert(`شناسه: ${userId} و ${coins} سکه ارسال شد.`);
-        }
-
-        function enterPassword() {
-            const password = prompt('رمز عبور را وارد کنید:');
-            if (password === 'esimk') {
-                coins += 100;
-                alert('100 سکه اضافه شد.');
-            } else {
-                alert('رمز اشتباه است.');
+            for (let i = 0; i < prizeChances.length; i++) {
+                cumulativeChance += prizeChances[i].chance;
+                if (random < cumulativeChance) {
+                    return prizeChances[i];
+                }
             }
+
+            return prizeChances[0]; // پیش‌فرض
         }
 
-        function changeUserId() {
-            const newUserId = prompt('شناسه جدید را وارد کنید:');
-            if (newUserId) {
-                localStorage.setItem('userId', newUserId);
-                alert('شناسه با موفقیت تغییر یافت.');
-            }
+        // بارگذاری صفحه گردونه در صورت ورود شناسه
+        if (userId) {
+            loadWheelPage();
         }
 
-        function changeUserName() {
-            const userName = prompt('اسم خود را وارد کنید:');
-            if (userName) {
-                alert(`اسم شما به ${userName} تغییر یافت.`);
-            }
-        }
-
-        function closeMenu() {
-            document.getElementById('menu').style.display = 'none';
-        }
     </script>
 </body>
 </html>
