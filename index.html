@@ -78,9 +78,9 @@
         }
 
         .timer {
-            display: none;
             font-size: 18px;
             color: black;
+            margin-top: 10px;
         }
 
         .wheel-container {
@@ -169,11 +169,19 @@
     </style>
 </head>
 <body>
-    <!-- بیضی‌ها و گردونه -->
+    <!-- بیضی‌های شناسه و سکه -->
     <div class="oval left" id="user-info"></div>
     <div class="oval right" id="coins-info">
         <span id="coins-text">0 سکه بردی</span>
     </div>
+
+    <!-- بیضی منو (بین بیضی‌های بالا) -->
+    <div class="oval" id="menu-oval" style="top: 90px; left: 50%; transform: translateX(-50%); background-color: lightblue;">
+        <button onclick="openMenu()">منو</button>
+    </div>
+
+    <!-- تایمر -->
+    <div class="timer" id="timer"></div>
 
     <!-- منو -->
     <div class="menu" id="menu">
@@ -194,7 +202,6 @@
         <div class="pointer"></div>
         <div class="wheel" id="wheel"></div>
         <button class="spin-button" id="spin-btn" onclick="spinWheel()">چرخاندن</button>
-        <div class="timer" id="timer"></div>
         <div class="result" id="result" style="display: none;"></div>
     </div>
 
@@ -255,32 +262,9 @@
             }, 3000);
         }
 
-        function openPassword() {
-            if (attemptCount < 3) {
-                const password = prompt("رمز عبور را وارد کنید");
-                if (password === "esimk") {
-                    coins += 100;
-                    localStorage.setItem('coins', coins);
-                    alert("100 سکه به حساب شما اضافه شد!");
-                } else {
-                    attemptCount++;
-                    if (attemptCount >= 3) {
-                        alert("شانس شما تمام شد!");
-                    }
-                }
-            }
-        }
-
-        function changeId() {
-            localStorage.removeItem('userId');
-            document.getElementById('input-container').style.display = 'block';
-            document.getElementById('wheel-container').style.display = 'none';
-        }
-
-        function setName() {
-            const name = prompt("نام خود را وارد کنید");
-            localStorage.setItem('userName', name);
-            document.getElementById('user-info').innerText = 'نام: ' + name;
+        // باز کردن منو
+        function openMenu() {
+            document.getElementById('menu').classList.add('open');
         }
 
         // بستن منو
@@ -288,18 +272,16 @@
             document.getElementById('menu').classList.remove('open');
         }
 
-        // باز کردن منو
-        function openMenu() {
-            document.getElementById('menu').classList.add('open');
-        }
-
-        // به‌روزرسانی سکه‌ها هر 24 ساعت
+        // به‌روزرسانی تایمر
         setInterval(() => {
             const now = new Date().getTime();
-            if (now - lastSpinTime >= 24 * 60 * 60 * 1000) {
-                localStorage.removeItem('coins');
-                localStorage.removeItem('lastSpinTime');
-                document.getElementById('coins-text').innerText = "0 سکه بردی";
+            const timeLeft = (24 * 60 * 60 * 1000) - (now - lastSpinTime);
+            if (timeLeft > 0) {
+                const hours = Math.floor(timeLeft / (1000 * 60 * 60));
+                const minutes = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
+                document.getElementById('timer').innerText = `زمان باقی‌مانده: ${hours} ساعت و ${minutes} دقیقه`;
+            } else {
+                document.getElementById('timer').innerText = 'زمان چرخاندن گردونه دوباره فرا رسیده است!';
             }
         }, 1000);
     </script>
