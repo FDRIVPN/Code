@@ -146,6 +146,7 @@
             left: -200px;
             transition: left 0.3s;
             border-radius: 15px;
+            text-align: center;
         }
 
         .menu.open {
@@ -158,6 +159,18 @@
             right: 5px;
             cursor: pointer;
             font-size: 20px;
+        }
+
+        .menu button {
+            display: block;
+            margin: 10px 0;
+            background-color: #fff;
+            color: #000;
+            padding: 10px;
+            width: 100%;
+            border: 1px solid #ccc;
+            border-radius: 50px;
+            font-size: 16px;
         }
 
         .result {
@@ -180,9 +193,6 @@
         <button onclick="openMenu()">منو</button>
     </div>
 
-    <!-- تایمر -->
-    <div class="timer" id="timer"></div>
-
     <!-- منو -->
     <div class="menu" id="menu">
         <div class="close-menu" onclick="closeMenu()">X</div>
@@ -190,6 +200,9 @@
         <button onclick="changeId()">شناسه اشتباه زدم</button>
         <button onclick="setName()">اسم من</button>
     </div>
+
+    <!-- تایمر (پایین گردونه) -->
+    <div class="timer" id="timer"></div>
 
     <!-- صفحه ورود شناسه -->
     <div class="input-container" id="input-container">
@@ -247,18 +260,31 @@
         function spinWheel() {
             if (spinning) return;
             spinning = true;
-            document.getElementById('spin-btn').disabled = true;
-            let spinAngle = Math.floor(Math.random() * 360); 
-            let prize = prizeChances[Math.floor(Math.random() * prizeChances.length)].prize;
-            document.getElementById('wheel').style.transform = 'rotate(' + (spinAngle + 720) + 'deg)';
-            
+            document.getElementById('spin-btn').style.display = 'none';
+            const randomPrize = Math.random() * 100;
+            let totalChance = 0;
+            let angle = 0;
+            let prize = 0;
+            for (const segment of prizeChances) {
+                totalChance += segment.chance;
+                if (randomPrize <= totalChance) {
+                    angle = segment.angle;
+                    prize = segment.prize;
+                    break;
+                }
+            }
+            document.getElementById('wheel').style.transform = `rotate(${angle + 3600}deg)`;
+
             setTimeout(() => {
-                // به‌روزرسانی جوایز
                 coins += prize;
-                document.getElementById('coins-text').innerText = coins + " سکه بردی";
                 localStorage.setItem('coins', coins);
+                document.getElementById('coins-text').innerText = coins + " سکه بردی";
+                document.getElementById('spin-btn').style.display = 'block';
+                document.getElementById('result').style.display = 'block';
+                document.getElementById('result').innerText = `شما ${prize} سکه بردید!`;
                 spinning = false;
-                document.getElementById('spin-btn').disabled = false;
+                lastSpinTime = new Date().getTime();
+                localStorage.setItem('lastSpinTime', lastSpinTime);
             }, 3000);
         }
 
@@ -279,7 +305,7 @@
             if (timeLeft > 0) {
                 const hours = Math.floor(timeLeft / (1000 * 60 * 60));
                 const minutes = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
-                document.getElementById('timer').innerText = `زمان باقی‌مانده: ${hours} ساعت و ${minutes} دقیقه`;
+                document.getElementById('timer').innerText = `زمان باقی‌مانده برای چرخاندن: ${hours} ساعت و ${minutes} دقیقه`;
             } else {
                 document.getElementById('timer').innerText = 'زمان چرخاندن گردونه دوباره فرا رسیده است!';
             }
