@@ -3,274 +3,281 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>سیستم مدیریت کاربران</title>
+    <title>سکه مجانی</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            text-align: center;
+        * {
             margin: 0;
             padding: 0;
-            background-color: #f4f4f9;
+            box-sizing: border-box;
         }
-        .container {
-            margin: 50px auto;
-            padding: 20px;
+
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            direction: rtl;
+            text-align: center;
+            overflow: hidden;
+            position: relative;
+            height: 100vh;
+        }
+
+        .input-container {
+            position: absolute;
+            top: 40%;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
             max-width: 400px;
+            background-color: #d3d3d3;
+            padding: 20px;
+            border-radius: 50px;
             text-align: center;
         }
-        .ellipse {
-            background-color: #f0f0f0;
-            padding: 20px;
-            border-radius: 50px;
-            margin: 10px auto;
-            font-size: 18px;
-            color: #333;
-            width: 80%;
-            cursor: pointer;
-        }
-        .btn {
-            padding: 15px 30px;
-            border-radius: 50px;
-            background-color: #4CAF50;
-            color: white;
-            font-size: 18px;
-            border: none;
-            cursor: pointer;
-            margin-top: 20px;
-        }
-        .menu-icon {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            width: 30px;
-            height: 30px;
-            cursor: pointer;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            background-color: #ddd;
-            border-radius: 5px;
-        }
-        .menu-icon span {
-            width: 20px;
-            height: 3px;
-            background-color: black;
-            margin: 3px 0;
-        }
-        .menu {
-            position: fixed;
-            top: 0;
-            right: 0;
-            width: 0;
-            height: 100%;
-            background-color: #fff;
-            box-shadow: -2px 0 5px rgba(0,0,0,0.3);
-            overflow: hidden;
-            transition: width 0.3s;
-        }
-        .menu.open {
-            width: 200px;
-        }
-        .menu a {
-            display: block;
-            padding: 10px 20px;
-            text-align: right;
-            text-decoration: none;
-            color: #333;
-            border-bottom: 1px solid #ddd;
-        }
-        .menu a:hover {
-            background-color: #f0f0f0;
-        }
-        .admin-panel, .users-panel {
-            display: none;
-            margin-top: 50px;
-        }
-        .user-list {
-            margin-top: 20px;
-        }
-        .user-item {
-            padding: 10px;
-            border: 1px solid #ddd;
-            margin: 5px 0;
-            text-align: left;
-        }
-        .search-container {
-            margin-top: 20px;
-        }
+
         .input-box {
+            width: 100%;
             padding: 10px;
-            width: 80%;
+            margin: 10px 0;
+            border-radius: 50px;
+            border: 1px solid #ccc;
+            background-color: white;
         }
-        .admin-actions {
-            margin-top: 20px;
-        }
-        .admin-actions button {
-            padding: 10px;
-            margin: 5px;
-            background-color: #4CAF50;
+
+        .confirm-button {
+            background-color: green;
             color: white;
+            padding: 10px 20px;
+            font-size: 18px;
             border: none;
+            border-radius: 50px;
             cursor: pointer;
+            width: 100%;
         }
-        .admin-actions button.delete {
-            background-color: #e74c3c;
+
+        .spin-button {
+            position: absolute;
+            bottom: -70px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 150px;
+            height: 50px;
+            border-radius: 50px;
+            font-size: 18px;
+            font-weight: bold;
+            text-align: center;
+            line-height: 50px;
+            background-color: gray;
+            color: white;
+            cursor: pointer;
+            border: none;
+            display: none;
         }
+
+        .spin-button:hover {
+            background-color: darkgray;
+        }
+
+        .timer {
+            display: none;
+            font-size: 18px;
+            color: black;
+        }
+
+        .wheel-container {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 300px;
+            height: 300px;
+        }
+
+        .wheel {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            position: relative;
+            background-image: url('Picsart_24-11-20_02-55-22-285.png');
+            background-size: cover;
+            background-position: center;
+            transform: rotate(0deg);
+            transition: transform 3s ease-out;
+        }
+
+        .pointer {
+            width: 0;
+            height: 0;
+            border-left: 15px solid transparent;
+            border-right: 15px solid transparent;
+            border-bottom: 30px solid red;
+            position: absolute;
+            top: -40px;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+
+        .oval {
+            position: absolute;
+            width: 120px;
+            height: 50px;
+            background-color: lightgray;
+            border-radius: 25px;
+            line-height: 50px;
+            font-weight: bold;
+            text-align: center;
+        }
+
+        .oval.left {
+            top: 10px;
+            left: 20px;
+        }
+
+        .oval.right {
+            top: 10px;
+            right: 20px;
+        }
+
+        .result {
+            margin-top: 20px;
+            font-size: 18px;
+            font-weight: bold;
+        }
+
     </style>
 </head>
 <body>
-    <div class="menu-icon" onclick="toggleMenu()">
-        <span></span>
-        <span></span>
-        <span></span>
+    <!-- بیضی‌ها و گردونه -->
+    <div class="oval left" id="user-info"></div>
+    <div class="oval right" id="coins-info">
+        <span id="coins-text">0 سکه بردی</span>
     </div>
 
-    <div class="menu" id="menu">
-        <a href="#" onclick="alert('این صفحه قفل است!')">خرید سکه</a>
-        <a href="#" onclick="alert('خودت پشتیبان اومدی اینجا هه!')">پشتیبانی</a>
-        <a href="#" onclick="logout()">خروج از اکانت</a>
-        <a href="#" onclick="viewUsers()">مشاهده کاربران</a>
+    <!-- صفحه ورود شناسه -->
+    <div class="input-container" id="input-container">
+        <input type="text" id="user-id" class="input-box" placeholder="شناسه خود را وارد کنید" />
+        <button class="confirm-button" onclick="confirmUserId()">تایید</button>
     </div>
 
-    <div class="container" id="registration-container">
-        <div class="ellipse">اسم</div>
-        <input type="text" id="username" class="input-box">
-        <div class="ellipse">شناسه</div>
-        <input type="text" id="password" class="input-box">
-        <button class="btn" onclick="register()">تایید</button>
-    </div>
-
-    <div class="container" id="user-dashboard" style="display: none;">
-        <div class="ellipse" id="invite-code" onclick="copyCode()">کد دعوت</div>
-        <div class="ellipse" id="invite-count">تعداد دعوت‌ها: 0</div>
-        <div class="ellipse" id="reward">جایزه دریافتی: 0</div>
-    </div>
-
-    <div class="container admin-panel" id="admin-panel">
-        <h2>پنل ادمین</h2>
-        <div class="search-container">
-            <input type="text" id="search-code" class="input-box" placeholder="کد دعوت را وارد کنید">
-            <button class="btn" onclick="searchUser()">جستجو</button>
-        </div>
-        <div class="user-list" id="user-list"></div>
-    </div>
-
-    <div class="container users-panel" id="users-panel">
-        <h2>تمامی کاربران</h2>
-        <div class="user-list" id="all-users-list"></div>
+    <!-- صفحه گردونه -->
+    <div class="wheel-container" id="wheel-container" style="display: none;">
+        <div class="pointer"></div>
+        <div class="wheel" id="wheel"></div>
+        <button class="spin-button" id="spin-btn" onclick="spinWheel()">چرخاندن</button>
+        <div class="timer" id="timer"></div>
+        <div class="result" id="result" style="display: none;"></div>
     </div>
 
     <script>
-        let users = JSON.parse(localStorage.getItem('users')) || {}; 
-        let currentUser = null;
+        let spinning = false;
+        const prizeChances = [
+            { angle: 360, prize: 30, chance: 55 },
+            { angle: 60, prize: 60, chance: 35 },
+            { angle: 120, prize: 90, chance: 2.5 },
+            { angle: 180, prize: 120, chance: 2.5 },
+            { angle: 240, prize: 150, chance: 2.5 },
+            { angle: 300, prize: 180, chance: 2.5 },
+        ];
 
-        function toggleMenu() {
-            const menu = document.getElementById('menu');
-            menu.classList.toggle('open');
-        }
+        let lastSpinTime = localStorage.getItem('lastSpinTime');
+        let coins = parseInt(localStorage.getItem('coins')) || 0;
+        const userId = localStorage.getItem('userId');
 
-        function register() {
-            const username = document.getElementById('username').value.trim();
-            const password = document.getElementById('password').value.trim();
-
-            if (!username || !password) {
-                alert('لطفاً تمامی فیلدها را پر کنید!');
-                return;
-            }
-
-            if (username === 'اسی' && password === 'اسی') {
-                loadAdminPanel();
-                return;
-            }
-
-            if (users[username]) {
-                users[username].devices.push({ password, inviteCode: `${password}-${Math.random().toString(36).substring(2, 8)}` });
+        // تایید شناسه
+        function confirmUserId() {
+            const inputUserId = document.getElementById('user-id').value.trim();
+            if (inputUserId && !userId) {
+                localStorage.setItem('userId', inputUserId);
+                localStorage.setItem('coins', 0);
+                localStorage.setItem('lastSpinTime', null);
+                loadWheelPage();
+            } else if (!inputUserId) {
+                alert("لطفا شناسه خود را وارد کنید.");
             } else {
-                users[username] = { username, devices: [{ password, inviteCode: `${password}-${Math.random().toString(36).substring(2, 8)}` }] };
-            }
-            currentUser = users[username];
-
-            localStorage.setItem('users', JSON.stringify(users));
-            loadUserDashboard();
-        }
-
-        function loadUserDashboard() {
-            document.getElementById('registration-container').style.display = 'none';
-            document.getElementById('user-dashboard').style.display = 'block';
-            document.getElementById('invite-code').textContent = `کد دعوت: ${currentUser.devices[0].inviteCode}`;
-            document.getElementById('invite-count').textContent = `تعداد دعوت‌ها: ${currentUser.devices.length}`;
-            document.getElementById('reward').textContent = `جایزه دریافتی: ${currentUser.devices.length * 200}`;
-        }
-
-        function copyCode() {
-            navigator.clipboard.writeText(currentUser.devices[0].inviteCode).then(() => {
-                alert('کد دعوت کپی شد!');
-            });
-        }
-
-        function logout() {
-            currentUser = null;
-            document.getElementById('registration-container').style.display = 'block';
-            document.getElementById('user-dashboard').style.display = 'none';
-            document.getElementById('admin-panel').style.display = 'none';
-        }
-
-        function loadAdminPanel() {
-            document.getElementById('registration-container').style.display = 'none';
-            document.getElementById('admin-panel').style.display = 'block';
-            const userList = document.getElementById('user-list');
-            userList.innerHTML = '';
-            for (let username in users) {
-                const user = users[username];
-                const userItem = document.createElement('div');
-                userItem.classList.add('user-item');
-                userItem.innerHTML = `
-                    <p>نام: ${user.username}</p>
-                    <p>تعداد دستگاه‌ها: ${user.devices.length}</p>
-                `;
-                userList.appendChild(userItem);
+                alert("شما قبلاً شناسه وارد کرده‌اید.");
             }
         }
 
-        function searchUser() {
-            const code = document.getElementById('search-code').value.trim();
-            const userList = document.getElementById('user-list');
-            userList.innerHTML = '';
+        // بارگذاری صفحه گردونه
+        function loadWheelPage() {
+            const userId = localStorage.getItem('userId');
+            const coins = parseInt(localStorage.getItem('coins')) || 0;
 
-            for (let username in users) {
-                const user = users[username];
-                const matchedDevices = user.devices.filter(device => device.inviteCode.includes(code));
-                if (matchedDevices.length > 0) {
-                    matchedDevices.forEach(device => {
-                        const userItem = document.createElement('div');
-                        userItem.classList.add('user-item');
-                        userItem.innerHTML = `
-                            <p>نام: ${user.username}</p>
-                            <p>کد دعوت: ${device.inviteCode}</p>
-                        `;
-                        userList.appendChild(userItem);
-                    });
+            if (userId) {
+                document.getElementById('user-info').textContent = userId;
+                document.getElementById('coins-text').textContent = `${coins} سکه بردی`;
+                document.getElementById('input-container').style.display = 'none';
+                document.getElementById('wheel-container').style.display = 'block';
+                updateTimer();
+            }
+        }
+
+        // به‌روزرسانی تایمر
+        function updateTimer() {
+            const now = Date.now();
+            const remainingTime = lastSpinTime ? 86400000 - (now - lastSpinTime) : 0;
+            const timerElement = document.getElementById('timer');
+            const spinBtn = document.getElementById('spin-btn');
+
+            if (remainingTime <= 0) {
+                timerElement.style.display = 'none';
+                spinBtn.style.display = 'block';
+                localStorage.setItem('coins', 0); // صفر کردن سکه‌ها
+                document.getElementById('coins-text').textContent = '0 سکه بردی';
+            } else {
+                timerElement.style.display = 'block';
+                spinBtn.style.display = 'none';
+                const hours = Math.floor(remainingTime / 3600000);
+                const minutes = Math.floor((remainingTime % 3600000) / 60000);
+                const seconds = Math.floor((remainingTime % 60000) / 1000);
+                timerElement.textContent = `${hours}:${minutes}:${seconds}`;
+                setTimeout(updateTimer, 1000);
+            }
+        }
+
+        // چرخاندن گردونه
+        function spinWheel() {
+            if (spinning) return;
+            spinning = true;
+
+            const wheel = document.getElementById("wheel");
+
+            const selectedPrize = selectPrize();
+            const randomSpin = selectedPrize.angle + 3600;
+            wheel.style.transform = `rotate(${randomSpin}deg)`;
+
+            setTimeout(() => {
+                coins += selectedPrize.prize;
+                localStorage.setItem('coins', coins);
+                document.getElementById("coins-text").textContent = `${coins} سکه بردی`;
+                document.getElementById('result').textContent = `شما ${selectedPrize.prize} سکه بردید!`;
+                document.getElementById('result').style.display = 'block';
+                lastSpinTime = Date.now();
+                localStorage.setItem('lastSpinTime', lastSpinTime);
+                spinning = false;
+                updateTimer();
+            }, 3000);
+        }
+
+        // انتخاب جایزه
+        function selectPrize() {
+            const random = Math.random() * 100;
+            let cumulativeChance = 0;
+
+            for (let i = 0; i < prizeChances.length; i++) {
+                cumulativeChance += prizeChances[i].chance;
+                if (random < cumulativeChance) {
+                    return prizeChances[i];
                 }
             }
+
+            return prizeChances[0]; // پیش‌فرض
         }
 
-        function viewUsers() {
-            const usersPanel = document.getElementById('users-panel');
-            usersPanel.style.display = 'block';
-
-            const allUsersList = document.getElementById('all-users-list');
-            allUsersList.innerHTML = '';
-            for (let username in users) {
-                const user = users[username];
-                const userItem = document.createElement('div');
-                userItem.classList.add('user-item');
-                userItem.innerHTML = `
-                    <p>نام: ${user.username}</p>
-                    <p>تعداد دستگاه‌ها: ${user.devices.length}</p>
-                `;
-                allUsersList.appendChild(userItem);
-            }
+        // بارگذاری صفحه گردونه در صورت ورود شناسه
+        if (userId) {
+            loadWheelPage();
         }
+
     </script>
 </body>
 </html>
