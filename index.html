@@ -173,25 +173,74 @@
             font-size: 16px;
         }
 
+        .cancel-button {
+            background-color: red;
+            color: white;
+            padding: 10px;
+            font-size: 18px;
+            width: 100%;
+            border-radius: 50px;
+            cursor: pointer;
+        }
+
+        .cancel-button:hover {
+            background-color: darkred;
+        }
+
         .result {
             margin-top: 20px;
             font-size: 18px;
             font-weight: bold;
         }
 
+        /* جدید برای بیضی اسم */
+        .name-oval {
+            position: absolute;
+            width: 120px;
+            height: 50px;
+            background-color: lightgreen;
+            border-radius: 25px;
+            line-height: 50px;
+            font-weight: bold;
+            text-align: center;
+            top: 60%;
+            left: 50%;
+            transform: translateX(-50%);
+            display: none;
+        }
+
+        .menu-oval {
+            position: absolute;
+            top: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: lightblue;
+            width: 120px;
+            height: 50px;
+            border-radius: 25px;
+            line-height: 50px;
+            text-align: center;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .menu-oval:hover {
+            background-color: lightgray;
+        }
     </style>
 </head>
 <body>
-    <!-- بیضی‌های شناسه و سکه -->
-    <div class="oval left" id="user-info"></div>
-    <div class="oval right" id="coins-info">
+    <!-- بیضی‌های شناسه و سکه (در صفحه گردونه) -->
+    <div class="oval left" id="user-info" style="top: 10px;"></div>
+    <div class="oval right" id="coins-info" style="top: 10px;">
         <span id="coins-text">0 سکه بردی</span>
     </div>
+    
+    <!-- بیضی اسم در پایین (اگر اسم وجود داشته باشد) -->
+    <div class="name-oval" id="name-oval"></div>
 
-    <!-- بیضی منو (بین بیضی‌های بالا) -->
-    <div class="oval" id="menu-oval" style="top: 90px; left: 50%; transform: translateX(-50%); background-color: lightblue;">
-        <button onclick="openMenu()">منو</button>
-    </div>
+    <!-- بیضی منو (بالای گردونه) -->
+    <div class="menu-oval" id="menu-oval" onclick="openMenu()">منو</div>
 
     <!-- منو -->
     <div class="menu" id="menu">
@@ -199,6 +248,7 @@
         <button onclick="openChannel()">رمزی</button>
         <button onclick="changeId()">شناسه اشتباه زدم</button>
         <button onclick="setName()">اسم من</button>
+        <button onclick="cancelAction()" class="cancel-button">لغو</button>
     </div>
 
     <!-- تایمر (پایین گردونه) -->
@@ -220,46 +270,31 @@
 
     <script>
         let spinning = false;
-        let attemptCount = 0; // شمارش تلاش‌های وارد کردن رمز
+        let attemptCount = 0;
         const prizeChances = [
             { angle: 360, prize: 30, chance: 55 },
             { angle: 60, prize: 60, chance: 35 },
             { angle: 120, prize: 90, chance: 2.5 },
             { angle: 180, prize: 120, chance: 2.5 },
-            { angle: 240, prize: 150, chance: 2.5 },
-            { angle: 300, prize: 180, chance: 2.5 },
+            { angle: 240, prize: 150, chance: 5 },
+            { angle: 300, prize: 200, chance: 2.5 }
         ];
+        let coins = 0;
+        let lastSpinTime = 0;
+        let userId = '';
+        let changeIdAllowed = true;
+        let passUsed = false;
 
-        let lastSpinTime = localStorage.getItem('lastSpinTime');
-        let coins = parseInt(localStorage.getItem('coins')) || 0;
-        let changeIdAllowed = true; // فقط یکبار اجازه تغییر شناسه
-        let usernameChanged = false; // اگر اسم تغییر کرد
-        let passUsed = false; // برای رمز
-
-        const userId = localStorage.getItem('userId');
-        const userName = localStorage.getItem('userName');
-
-        // اگر شناسه وجود داشته باشد، به صفحه اصلی هدایت می‌شود
-        if (userId) {
-            document.getElementById('input-container').style.display = 'none';
-            document.getElementById('wheel-container').style.display = 'block';
-            document.getElementById('user-info').innerText = 'شناسه: ' + userId;
-            document.getElementById('coins-text').innerText = coins + " سکه بردی";
-        }
-
-        // تایید شناسه
         function confirmUserId() {
-            const inputUserId = document.getElementById('user-id').value.trim();
-            if (inputUserId && !userId) {
-                localStorage.setItem('userId', inputUserId);
+            userId = document.getElementById('user-id').value;
+            if (userId) {
+                localStorage.setItem('userId', userId);
+                document.getElementById('user-info').innerText = 'شناسه: ' + userId;
                 document.getElementById('input-container').style.display = 'none';
                 document.getElementById('wheel-container').style.display = 'block';
-                document.getElementById('user-info').innerText = 'شناسه: ' + inputUserId;
-                document.getElementById('coins-text').innerText = coins + " سکه بردی";
             }
         }
 
-        // تغییر شناسه
         function changeId() {
             if (changeIdAllowed) {
                 alert('فقط یک‌بار می‌توانید شناسه خود را تغییر دهید.');
@@ -274,7 +309,6 @@
             }
         }
 
-        // وارد کردن رمز
         function openChannel() {
             const pass = prompt('رمز را وارد کنید:');
             if (pass === 'esimk' && !passUsed) {
@@ -293,17 +327,27 @@
             }
         }
 
-        // نمایش منو
         function openMenu() {
             document.getElementById('menu').classList.add('open');
+            document.getElementById('menu-oval').style.transform = "translateX(-50%) translateY(-100%)"; 
         }
 
-        // بستن منو
         function closeMenu() {
             document.getElementById('menu').classList.remove('open');
         }
 
-        // چرخاندن گردونه
+        function setName() {
+            const newName = prompt('نام جدید خود را وارد کنید:');
+            if (newName) {
+                document.getElementById('name-oval').innerText = newName;
+                document.getElementById('name-oval').style.display = 'block';
+            }
+        }
+
+        function cancelAction() {
+            closeMenu();
+        }
+
         function spinWheel() {
             if (spinning) return;
             spinning = true;
@@ -342,9 +386,9 @@
             if (timeLeft > 0) {
                 const hours = Math.floor(timeLeft / (1000 * 60 * 60));
                 const minutes = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
-                document.getElementById('timer').innerText = `زمان باقی‌مانده برای چرخاندن: ${hours} ساعت و ${minutes} دقیقه`;
+                document.getElementById('timer').innerText = `${hours} ساعت و ${minutes} دقیقه`;
             } else {
-                document.getElementById('timer').innerText = 'زمان چرخاندن گردونه دوباره فرا رسیده است!';
+                document.getElementById('timer').innerText = 'زمان چرخاندن گردونه فرا رسیده است!';
             }
         }, 1000);
     </script>
