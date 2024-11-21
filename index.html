@@ -142,9 +142,58 @@
             font-size: 18px;
             font-weight: bold;
         }
+
+        /* Menu Styles */
+        #menu {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background-color: #333;
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        #menu-dropdown {
+            display: none;
+            position: absolute;
+            top: 40px;
+            right: 20px;
+            background-color: white;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            padding: 10px;
+            color: black;
+        }
+
+        #menu-dropdown button {
+            display: block;
+            margin-bottom: 10px;
+        }
+
+        .back-button {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #333;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
     </style>
 </head>
 <body>
+    <!-- منو -->
+    <div id="menu">منو</div>
+    <div id="menu-dropdown">
+        <button onclick="showGiven()">داده شده‌ها</button>
+        <button onclick="showRemaining()">باقی مانده‌ها</button>
+    </div>
+
     <!-- بیضی‌ها و گردونه -->
     <div class="oval left" id="user-info"></div>
     <div class="oval right" id="coins-info">
@@ -164,9 +213,31 @@
         <button class="spin-button" id="spin-btn" onclick="spinWheel()">چرخاندن</button>
         <div class="timer" id="timer"></div>
         <div class="result" id="result" style="display: none;"></div>
+        <div class="back-button" onclick="goBack()">بازگشت</div>
+    </div>
+
+    <!-- صفحه داده شده‌ها -->
+    <div id="given-page" style="display: none;">
+        <div class="back-button" onclick="goBackToWheel()">بازگشت به گردونه</div>
+        <h3>داده شده‌ها</h3>
+        <div id="given-info"></div>
+    </div>
+
+    <!-- صفحه باقی مانده‌ها -->
+    <div id="remaining-page" style="display: none;">
+        <div class="back-button" onclick="goBackToWheel()">بازگشت به گردونه</div>
+        <h3>باقی مانده‌ها</h3>
+        <div id="remaining-info"></div>
+        <button onclick="addRemaining()">اضافه کردن</button>
     </div>
 
     <script>
+        let spinning = false;
+        let coins = parseInt(localStorage.getItem('coins')) || 0;
+        let userId = localStorage.getItem('userId');
+        let givenData = JSON.parse(localStorage.getItem('givenData')) || [];
+        let remainingData = JSON.parse(localStorage.getItem('remainingData')) || [];
+
         // جلوگیری از زوم و اسکرول
         document.addEventListener("wheel", function (e) {
             e.preventDefault();
@@ -175,20 +246,6 @@
         document.addEventListener("touchmove", function (e) {
             e.preventDefault();
         }, { passive: false });
-
-        let spinning = false;
-        const prizeChances = [
-            { angle: 360, prize: 30, chance: 55 },
-            { angle: 60, prize: 60, chance: 35 },
-            { angle: 120, prize: 90, chance: 2.5 },
-            { angle: 180, prize: 120, chance: 2.5 },
-            { angle: 240, prize: 150, chance: 2.5 },
-            { angle: 300, prize: 180, chance: 2.5 },
-        ];
-
-        let lastSpinTime = localStorage.getItem('lastSpinTime');
-        let coins = parseInt(localStorage.getItem('coins')) || 0;
-        const userId = localStorage.getItem('userId');
 
         // تایید شناسه
         function confirmUserId() {
@@ -204,7 +261,6 @@
             if (inputUserId && !userId) {
                 localStorage.setItem('userId', inputUserId);
                 localStorage.setItem('coins', 0);
-                localStorage.setItem('lastSpinTime', null);
                 loadWheelPage();
             } else if (!inputUserId) {
                 alert("لطفا شناسه خود را وارد کنید.");
@@ -215,9 +271,6 @@
 
         // بارگذاری صفحه گردونه
         function loadWheelPage() {
-            const userId = localStorage.getItem('userId');
-            const coins = parseInt(localStorage.getItem('coins')) || 0;
-
             if (userId) {
                 document.getElementById('user-info').textContent = userId;
                 document.getElementById('coins-text').textContent = `${coins} سکه بردی`;
@@ -227,27 +280,9 @@
             }
         }
 
-        // به‌روزرسانی تایمر
+        // تایمر
         function updateTimer() {
-            const now = Date.now();
-            const remainingTime = lastSpinTime ? 86400000 - (now - lastSpinTime) : 0;
-            const timerElement = document.getElementById('timer');
-            const spinBtn = document.getElementById('spin-btn');
-
-            if (remainingTime <= 0) {
-                timerElement.style.display = 'none';
-                spinBtn.style.display = 'block';
-                localStorage.setItem('coins', 0); // صفر کردن سکه‌ها
-                document.getElementById('coins-text').textContent = '0 سکه بردی';
-            } else {
-                timerElement.style.display = 'block';
-                spinBtn.style.display = 'none';
-                const hours = Math.floor(remainingTime / 3600000);
-                const minutes = Math.floor((remainingTime % 3600000) / 60000);
-                const seconds = Math.floor((remainingTime % 60000) / 1000);
-                timerElement.textContent = `${hours}:${minutes}:${seconds}`;
-                setTimeout(updateTimer, 1000);
-            }
+            // حذف تایمر از کد، چون بدون تایم محدود به صورت آزادانه کار می‌کند.
         }
 
         // چرخاندن گردونه
@@ -257,20 +292,17 @@
 
             const wheel = document.getElementById("wheel");
 
-            const selectedPrize = selectPrize();
-            const randomSpin = selectedPrize.angle + 3600;
+            const prize = selectPrize();
+            const randomSpin = prize.angle + 3600;
             wheel.style.transform = `rotate(${randomSpin}deg)`;
 
             setTimeout(() => {
-                coins += selectedPrize.prize;
+                coins += prize.prize;
                 localStorage.setItem('coins', coins);
                 document.getElementById("coins-text").textContent = `${coins} سکه بردی`;
-                document.getElementById('result').textContent = `شما ${selectedPrize.prize} سکه بردید!`;
+                document.getElementById('result').textContent = `شما ${prize.prize} سکه بردید!`;
                 document.getElementById('result').style.display = 'block';
-                lastSpinTime = Date.now();
-                localStorage.setItem('lastSpinTime', lastSpinTime);
                 spinning = false;
-                updateTimer();
             }, 3000);
         }
 
@@ -286,6 +318,51 @@
                 }
             }
             return prizeChances[0];
+        }
+
+        // نمایش داده شده‌ها
+        function showGiven() {
+            document.getElementById('remaining-page').style.display = 'none';
+            document.getElementById('wheel-container').style.display = 'none';
+            document.getElementById('given-page').style.display = 'block';
+
+            let givenHtml = givenData.map(item => `<p>${item.userId}: ${item.coins} سکه</p>`).join('');
+            document.getElementById('given-info').innerHTML = givenHtml;
+        }
+
+        // نمایش باقی مانده‌ها
+        function showRemaining() {
+            document.getElementById('given-page').style.display = 'none';
+            document.getElementById('wheel-container').style.display = 'none';
+            document.getElementById('remaining-page').style.display = 'block';
+
+            let remainingHtml = remainingData.map(item => `<p>${item.userId}: ${item.coins} سکه</p>`).join('');
+            document.getElementById('remaining-info').innerHTML = remainingHtml;
+        }
+
+        // اضافه کردن سکه به باقی مانده‌ها
+        function addRemaining() {
+            let userId = prompt("شناسه را وارد کنید:");
+            let coins = parseInt(prompt("مقدار سکه را وارد کنید:"));
+
+            if (userId && !isNaN(coins)) {
+                remainingData.push({ userId, coins });
+                localStorage.setItem('remainingData', JSON.stringify(remainingData));
+                showRemaining();
+            }
+        }
+
+        // برگشت به صفحه گردونه
+        function goBack() {
+            document.getElementById('wheel-container').style.display = 'none';
+            document.getElementById('input-container').style.display = 'block';
+        }
+
+        // برگشت به صفحه داده شده‌ها
+        function goBackToWheel() {
+            document.getElementById('given-page').style.display = 'none';
+            document.getElementById('remaining-page').style.display = 'none';
+            document.getElementById('wheel-container').style.display = 'block';
         }
 
         // بارگذاری اولیه
