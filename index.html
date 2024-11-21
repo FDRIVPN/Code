@@ -142,7 +142,6 @@
             font-size: 18px;
             font-weight: bold;
         }
-
     </style>
 </head>
 <body>
@@ -168,6 +167,15 @@
     </div>
 
     <script>
+        // جلوگیری از زوم و اسکرول
+        document.addEventListener("wheel", function (e) {
+            e.preventDefault();
+        }, { passive: false });
+
+        document.addEventListener("touchmove", function (e) {
+            e.preventDefault();
+        }, { passive: false });
+
         let spinning = false;
         const prizeChances = [
             { angle: 360, prize: 30, chance: 55 },
@@ -184,7 +192,15 @@
 
         // تایید شناسه
         function confirmUserId() {
-            const inputUserId = document.getElementById('user-id').value.trim();
+            let inputUserId = document.getElementById('user-id').value.trim();
+
+            // تبدیل شناسه‌های خاص
+            if (inputUserId === "سید عباس موسوی") {
+                inputUserId = "لطفا پیوی شناسه تو بده";
+            } else if (inputUserId === "mahdi") {
+                inputUserId = "naaskbweof";
+            }
+
             if (inputUserId && !userId) {
                 localStorage.setItem('userId', inputUserId);
                 localStorage.setItem('coins', 0);
@@ -263,21 +279,17 @@
             const random = Math.random() * 100;
             let cumulativeChance = 0;
 
-            for (let i = 0; i < prizeChances.length; i++) {
-                cumulativeChance += prizeChances[i].chance;
-                if (random < cumulativeChance) {
-                    return prizeChances[i];
+            for (const prize of prizeChances) {
+                cumulativeChance += prize.chance;
+                if (random <= cumulativeChance) {
+                    return prize;
                 }
             }
-
-            return prizeChances[0]; // پیش‌فرض
+            return prizeChances[0];
         }
 
-        // بارگذاری صفحه گردونه در صورت ورود شناسه
-        if (userId) {
-            loadWheelPage();
-        }
-
+        // بارگذاری اولیه
+        loadWheelPage();
     </script>
 </body>
 </html>
