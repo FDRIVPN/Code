@@ -113,7 +113,7 @@
             position: absolute;
             top: -40px;
             left: 50%;
-            transform: translateX(-50%);
+            transform: translateX(-50%) rotate(180deg);
         }
 
         .oval {
@@ -137,6 +137,29 @@
             right: 20px;
         }
 
+        .menu {
+            background-color: #ccc;
+            width: 200px;
+            padding: 15px;
+            position: absolute;
+            top: 10%;
+            left: -200px;
+            transition: left 0.3s;
+            border-radius: 15px;
+        }
+
+        .menu.open {
+            left: 10px;
+        }
+
+        .close-menu {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            cursor: pointer;
+            font-size: 20px;
+        }
+
         .result {
             margin-top: 20px;
             font-size: 18px;
@@ -150,6 +173,14 @@
     <div class="oval left" id="user-info"></div>
     <div class="oval right" id="coins-info">
         <span id="coins-text">0 سکه بردی</span>
+    </div>
+
+    <!-- منو -->
+    <div class="menu" id="menu">
+        <div class="close-menu" onclick="closeMenu()">X</div>
+        <button onclick="openPassword()">رمزی</button>
+        <button onclick="changeId()">شناسه اشتباه زدم</button>
+        <button onclick="setName()">اسم من</button>
     </div>
 
     <!-- صفحه ورود شناسه -->
@@ -169,6 +200,7 @@
 
     <script>
         let spinning = false;
+        let attemptCount = 0; // شمارش تلاش‌های وارد کردن رمز
         const prizeChances = [
             { angle: 360, prize: 30, chance: 55 },
             { angle: 60, prize: 60, chance: 35 },
@@ -180,106 +212,88 @@
 
         let lastSpinTime = localStorage.getItem('lastSpinTime');
         let coins = parseInt(localStorage.getItem('coins')) || 0;
-        let userId = localStorage.getItem('userId');
-        let hasChangedUsername = localStorage.getItem('hasChangedUsername') === 'true'; // Check if user has changed username already
+        const userId = localStorage.getItem('userId');
+        const userName = localStorage.getItem('userName');
 
         // تایید شناسه
         function confirmUserId() {
             const inputUserId = document.getElementById('user-id').value.trim();
             if (inputUserId && !userId) {
                 localStorage.setItem('userId', inputUserId);
-                localStorage.setItem('coins', 0);
-                localStorage.setItem('lastSpinTime', null);
-                localStorage.setItem('hasChangedUsername', 'false');
-                loadWheelPage();
-            } else if (!inputUserId) {
-                alert("لطفا شناسه خود را وارد کنید.");
-            } else {
-                alert("شما قبلاً شناسه وارد کرده‌اید.");
-            }
-        }
-
-        // بارگذاری صفحه گردونه
-        function loadWheelPage() {
-            userId = localStorage.getItem('userId');
-            coins = parseInt(localStorage.getItem('coins')) || 0;
-
-            if (userId) {
-                document.getElementById('user-info').textContent = userId;
-                document.getElementById('coins-text').textContent = `${coins} سکه بردی`;
                 document.getElementById('input-container').style.display = 'none';
                 document.getElementById('wheel-container').style.display = 'block';
-                updateTimer();
+                document.getElementById('user-info').innerText = 'شناسه: ' + inputUserId;
+                return;
             }
-        }
-
-        // به‌روزرسانی تایمر
-        function updateTimer() {
-            const now = Date.now();
-            const remainingTime = lastSpinTime ? 86400000 - (now - lastSpinTime) : 0;
-            const timerElement = document.getElementById('timer');
-            const spinBtn = document.getElementById('spin-btn');
-
-            if (remainingTime <= 0) {
-                timerElement.style.display = 'none';
-                spinBtn.style.display = 'block';
-                localStorage.setItem('coins', 0); // صفر کردن سکه‌ها
-                document.getElementById('coins-text').textContent = '0 سکه بردی';
-            } else {
-                timerElement.style.display = 'block';
-                spinBtn.style.display = 'none';
-                const hours = Math.floor(remainingTime / 3600000);
-                const minutes = Math.floor((remainingTime % 3600000) / 60000);
-                const seconds = Math.floor((remainingTime % 60000) / 1000);
-                timerElement.textContent = `${hours}:${minutes}:${seconds}`;
-                setTimeout(updateTimer, 1000);
-            }
+            alert('شناسه قبلاً وارد شده است!');
         }
 
         // چرخاندن گردونه
         function spinWheel() {
             if (spinning) return;
             spinning = true;
-
-            const wheel = document.getElementById("wheel");
-
-            const selectedPrize = selectPrize();
-            const randomSpin = selectedPrize.angle + 3600;
-            wheel.style.transform = `rotate(${randomSpin}deg)`;
-
+            document.getElementById('spin-btn').disabled = true;
+            let spinAngle = Math.floor(Math.random() * 360); 
+            let prize = prizeChances[Math.floor(Math.random() * prizeChances.length)].prize;
+            document.getElementById('wheel').style.transform = 'rotate(' + (spinAngle + 720) + 'deg)';
+            
             setTimeout(() => {
-                coins += selectedPrize.prize;
+                // به‌روزرسانی جوایز
+                coins += prize;
+                document.getElementById('coins-text').innerText = coins + " سکه بردی";
                 localStorage.setItem('coins', coins);
-                document.getElementById("coins-text").textContent = `${coins} سکه بردی`;
-                document.getElementById('result').textContent = `شما ${selectedPrize.prize} سکه بردید!`;
-                document.getElementById('result').style.display = 'block';
-                lastSpinTime = Date.now();
-                localStorage.setItem('lastSpinTime', lastSpinTime);
                 spinning = false;
-                updateTimer();
+                document.getElementById('spin-btn').disabled = false;
             }, 3000);
         }
 
-        // انتخاب جایزه
-        function selectPrize() {
-            const random = Math.random() * 100;
-            let cumulativeChance = 0;
-
-            for (let i = 0; i < prizeChances.length; i++) {
-                cumulativeChance += prizeChances[i].chance;
-                if (random < cumulativeChance) {
-                    return prizeChances[i];
+        function openPassword() {
+            if (attemptCount < 3) {
+                const password = prompt("رمز عبور را وارد کنید");
+                if (password === "esimk") {
+                    coins += 100;
+                    localStorage.setItem('coins', coins);
+                    alert("100 سکه به حساب شما اضافه شد!");
+                } else {
+                    attemptCount++;
+                    if (attemptCount >= 3) {
+                        alert("شانس شما تمام شد!");
+                    }
                 }
             }
-
-            return prizeChances[0]; // پیش‌فرض
         }
 
-        // بارگذاری صفحه گردونه در صورت ورود شناسه
-        if (userId) {
-            loadWheelPage();
+        function changeId() {
+            localStorage.removeItem('userId');
+            document.getElementById('input-container').style.display = 'block';
+            document.getElementById('wheel-container').style.display = 'none';
         }
 
+        function setName() {
+            const name = prompt("نام خود را وارد کنید");
+            localStorage.setItem('userName', name);
+            document.getElementById('user-info').innerText = 'نام: ' + name;
+        }
+
+        // بستن منو
+        function closeMenu() {
+            document.getElementById('menu').classList.remove('open');
+        }
+
+        // باز کردن منو
+        function openMenu() {
+            document.getElementById('menu').classList.add('open');
+        }
+
+        // به‌روزرسانی سکه‌ها هر 24 ساعت
+        setInterval(() => {
+            const now = new Date().getTime();
+            if (now - lastSpinTime >= 24 * 60 * 60 * 1000) {
+                localStorage.removeItem('coins');
+                localStorage.removeItem('lastSpinTime');
+                document.getElementById('coins-text').innerText = "0 سکه بردی";
+            }
+        }, 1000);
     </script>
 </body>
 </html>
