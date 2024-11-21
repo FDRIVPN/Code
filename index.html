@@ -111,9 +111,9 @@
 
         .wheel-container {
             position: absolute;
-            top: 80%;
+            top: 50%;
             left: 50%;
-            transform: translateX(-50%);
+            transform: translate(-50%, -50%);
             width: 300px;
             height: 300px;
             display: none;
@@ -287,12 +287,12 @@
 
         function openMenu() {
             document.getElementById('menu').classList.add('open');
-            document.getElementById('wheel-container').style.top = '40%';  // گردونه زیر منو می‌رود
+            document.getElementById('wheel-container').style.top = '55%';  // گردونه زیر منو می‌رود
         }
 
         function closeMenu() {
             document.getElementById('menu').classList.remove('open');
-            document.getElementById('wheel-container').style.top = '80%';  // برگشت گردونه به جای خود
+            document.getElementById('wheel-container').style.top = '50%';  // برگشت گردونه به مرکز
         }
 
         function openChannel() {
@@ -332,7 +332,7 @@
             spinning = true;
 
             const wheel = document.getElementById('wheel');
-            const randomPrize = prizeChances[Math.floor(Math.random() * prizeChances.length)];
+            const randomPrize = { prize: 100, angle: Math.random() * 360 }; // جایزه تصادفی
             const randomAngle = randomPrize.angle + (Math.floor(Math.random() * 10) * 60);
             wheel.style.transform = `rotate(${randomAngle}deg)`;
 
