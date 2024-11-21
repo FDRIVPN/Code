@@ -255,7 +255,7 @@
     <div class="timer" id="timer"></div>
 
     <!-- صفحه ورود شناسه -->
-    <div class="input-container" id="input-container">
+    <div class="input-container" id="input-container" style="display: none;">
         <input type="text" id="user-id" class="input-box" placeholder="شناسه خود را وارد کنید" />
         <button class="confirm-button" onclick="confirmUserId()">تایید</button>
     </div>
@@ -275,15 +275,41 @@
             { angle: 360, prize: 30, chance: 55 },
             { angle: 60, prize: 60, chance: 35 },
             { angle: 120, prize: 90, chance: 2.5 },
-            { angle: 180, prize: 120, chance: 2.5 },
-            { angle: 240, prize: 150, chance: 5 },
-            { angle: 300, prize: 200, chance: 2.5 }
+            { angle: 180, prize: 50, chance: 3 },
+            { angle: 240, prize: 20, chance: 3 },
+            { angle: 300, prize: 100, chance: 0.5 }
         ];
-        let coins = 0;
-        let lastSpinTime = 0;
+
         let userId = '';
+        let userCoins = 0;
+        let name = '';
+
         let changeIdAllowed = true;
         let passUsed = false;
+
+        // بارگذاری شناسه ذخیره‌شده از localStorage
+        if (localStorage.getItem('userId')) {
+            userId = localStorage.getItem('userId');
+            document.getElementById('user-info').innerText = 'شناسه: ' + userId;
+            document.getElementById('input-container').style.display = 'none';
+            document.getElementById('wheel-container').style.display = 'block';
+        } else {
+            document.getElementById('input-container').style.display = 'block';
+        }
+
+        // نمایش تایمر
+        function startTimer() {
+            let timer = 10; // زمان تایمر (دقیقه)
+            const timerElement = document.getElementById('timer');
+            const interval = setInterval(() => {
+                if (timer === 0) {
+                    clearInterval(interval);
+                    timerElement.innerText = '';
+                } else {
+                    timerElement.innerText = `زمان باقی‌مانده: ${timer--} دقیقه`;
+                }
+            }, 60000);
+        }
 
         function confirmUserId() {
             userId = document.getElementById('user-id').value;
@@ -295,102 +321,63 @@
             }
         }
 
-        function changeId() {
-            if (changeIdAllowed) {
-                alert('فقط یک‌بار می‌توانید شناسه خود را تغییر دهید.');
-                const newId = prompt('شناسه جدید را وارد کنید:');
-                if (newId && newId !== userId) {
-                    localStorage.setItem('userId', newId);
-                    document.getElementById('user-info').innerText = 'شناسه: ' + newId;
-                    changeIdAllowed = false;
-                }
-            } else {
-                alert('شما فقط یک‌بار می‌توانید شناسه خود را تغییر دهید.');
-            }
-        }
-
-        function openChannel() {
-            const pass = prompt('رمز را وارد کنید:');
-            if (pass === 'esimk' && !passUsed) {
-                coins += 100;
-                localStorage.setItem('coins', coins);
-                document.getElementById('coins-text').innerText = coins + " سکه بردی";
-                passUsed = true;
-                alert('شما 100 سکه دریافت کردید!');
-            } else if (pass === 'esimk' && passUsed) {
-                alert('شما قبلاً برنده شده‌اید!');
-            } else if (attemptCount < 3) {
-                alert('رمز اشتباه است. رمز در کانال موجود است.');
-                attemptCount++;
-            } else {
-                alert('مهلت شما تمام شده است!');
-            }
-        }
-
         function openMenu() {
             document.getElementById('menu').classList.add('open');
-            document.getElementById('menu-oval').style.transform = "translateX(-50%) translateY(-100%)"; 
         }
 
         function closeMenu() {
             document.getElementById('menu').classList.remove('open');
         }
 
+        function openChannel() {
+            window.location.href = 'https://t.me/remzi_esi';
+        }
+
+        function changeId() {
+            if (changeIdAllowed) {
+                alert('فقط یک بار می‌توانید شناسه خود را تغییر دهید.');
+                const newId = prompt('شناسه جدید خود را وارد کنید:');
+                if (newId) {
+                    userId = newId;
+                    localStorage.setItem('userId', newId);
+                    document.getElementById('user-info').innerText = 'شناسه: ' + newId;
+                    changeIdAllowed = false;
+                }
+            } else {
+                alert('شما قبلاً شناسه خود را تغییر داده‌اید.');
+            }
+        }
+
         function setName() {
-            const newName = prompt('نام جدید خود را وارد کنید:');
+            const newName = prompt('اسم جدید خود را وارد کنید:');
             if (newName) {
-                document.getElementById('name-oval').innerText = newName;
+                name = newName;
+                document.getElementById('name-oval').innerText = name;
                 document.getElementById('name-oval').style.display = 'block';
             }
         }
 
         function cancelAction() {
-            closeMenu();
+            alert('عملیات لغو شد.');
         }
 
         function spinWheel() {
             if (spinning) return;
             spinning = true;
-            document.getElementById('spin-btn').style.display = 'none';
-            const randomPrize = Math.random() * 100;
-            let totalChance = 0;
-            let angle = 0;
-            let prize = 0;
-            for (const segment of prizeChances) {
-                totalChance += segment.chance;
-                if (randomPrize <= totalChance) {
-                    angle = segment.angle;
-                    prize = segment.prize;
-                    break;
-                }
-            }
-            document.getElementById('wheel').style.transform = `rotate(${angle + 3600}deg)`;
+
+            const wheel = document.getElementById('wheel');
+            const randomPrize = prizeChances[Math.floor(Math.random() * prizeChances.length)];
+            const randomAngle = randomPrize.angle + (Math.floor(Math.random() * 10) * 60);
+            wheel.style.transform = `rotate(${randomAngle}deg)`;
 
             setTimeout(() => {
-                coins += prize;
-                localStorage.setItem('coins', coins);
-                document.getElementById('coins-text').innerText = coins + " سکه بردی";
-                document.getElementById('spin-btn').style.display = 'block';
-                document.getElementById('result').style.display = 'block';
-                document.getElementById('result').innerText = `شما ${prize} سکه بردید!`;
                 spinning = false;
-                lastSpinTime = new Date().getTime();
-                localStorage.setItem('lastSpinTime', lastSpinTime);
+                userCoins += randomPrize.prize;
+                document.getElementById('coins-text').innerText = `${userCoins} سکه بردی`;
+                document.getElementById('result').innerText = `شما برنده ${randomPrize.prize} سکه شدید`;
+                document.getElementById('result').style.display = 'block';
             }, 3000);
         }
-
-        // بروزرسانی تایمر
-        setInterval(() => {
-            const now = new Date().getTime();
-            const timeLeft = (24 * 60 * 60 * 1000) - (now - lastSpinTime);
-            if (timeLeft > 0) {
-                const hours = Math.floor(timeLeft / (1000 * 60 * 60));
-                const minutes = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
-                document.getElementById('timer').innerText = `${hours} ساعت و ${minutes} دقیقه`;
-            } else {
-                document.getElementById('timer').innerText = 'زمان چرخاندن گردونه فرا رسیده است!';
-            }
-        }, 1000);
     </script>
 </body>
 </html>
