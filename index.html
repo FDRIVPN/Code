@@ -215,6 +215,14 @@
         const userId = localStorage.getItem('userId');
         const userName = localStorage.getItem('userName');
 
+        // اگر شناسه وجود داشته باشد، به صفحه اصلی هدایت می‌شود
+        if (userId) {
+            document.getElementById('input-container').style.display = 'none';
+            document.getElementById('wheel-container').style.display = 'block';
+            document.getElementById('user-info').innerText = 'شناسه: ' + userId;
+            document.getElementById('coins-text').innerText = coins + " سکه بردی";
+        }
+
         // تایید شناسه
         function confirmUserId() {
             const inputUserId = document.getElementById('user-id').value.trim();
