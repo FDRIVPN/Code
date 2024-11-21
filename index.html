@@ -282,7 +282,7 @@
 
         // تایمر
         function updateTimer() {
-            // حذف تایمر از کد، چون بدون تایم محدود به صورت آزادانه کار می‌کند.
+            // حذف تایمر از کد چون بدون تایم محدود به صورت آزادانه کار می‌کند.
         }
 
         // چرخاندن گردونه
@@ -310,6 +310,14 @@
         function selectPrize() {
             const random = Math.random() * 100;
             let cumulativeChance = 0;
+
+            const prizeChances = [
+                { prize: 10, angle: 30, chance: 30 },
+                { prize: 20, angle: 90, chance: 20 },
+                { prize: 30, angle: 180, chance: 15 },
+                { prize: 40, angle: 270, chance: 10 },
+                { prize: 50, angle: 360, chance: 25 }
+            ];
 
             for (const prize of prizeChances) {
                 cumulativeChance += prize.chance;
@@ -352,6 +360,16 @@
             }
         }
 
+        // منو باز و بسته
+        document.getElementById("menu").onclick = function () {
+            const menuDropdown = document.getElementById("menu-dropdown");
+            if (menuDropdown.style.display === "none" || menuDropdown.style.display === "") {
+                menuDropdown.style.display = "block";
+            } else {
+                menuDropdown.style.display = "none";
+            }
+        }
+
         // برگشت به صفحه گردونه
         function goBack() {
             document.getElementById('wheel-container').style.display = 'none';
@@ -364,9 +382,6 @@
             document.getElementById('remaining-page').style.display = 'none';
             document.getElementById('wheel-container').style.display = 'block';
         }
-
-        // بارگذاری اولیه
-        loadWheelPage();
     </script>
 </body>
 </html>
