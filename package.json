@@ -1,0 +1,25 @@
+{
+  "name": "godot-multiplayer-server",
+  "version": "1.0.0",
+  "description": "Godot Multiplayer WebSocket Server",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "keywords": [
+    "godot",
+    "websocket",
+    "multiplayer",
+    "railway"
+  ],
+  "author": "ESHAGH",
+  "license": "MIT",
+  "dependencies": {
+    "ws": "^8.18.3",
+    "uuid": "^11.1.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
