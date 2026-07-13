@@ -1,317 +1,187 @@
 import { WebSocketServer } from "ws";
 import http from "http";
-import Player from "./Player.js";
-import RoomManager from "./RoomManager.js";
-import ChatManager from "./Chat.js";
-import { Packets, parsePacket } from "./Packet.js";
-import config from "./config.js";
 
 const PORT = process.env.PORT || 8080;
 
-// ایجاد HTTP Server
+// HTTP Server برای Railway
 const server = http.createServer((req, res) => {
-    // پاسخ به درخواست‌های HTTP برای Railway
-    if (req.url === '/health' || req.url === '/') {
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ 
-            status: 'online', 
-            players: players.size,
-            rooms: roomManager.rooms.size,
-            timestamp: Date.now()
-        }));
-        return;
-    }
-    
-    res.writeHead(404);
-    res.end('Not Found');
-});
-
-// اتصال WebSocket به HTTP Server
-const wss = new WebSocketServer({ 
-    server,
-    maxPayload: config.ws.maxPayloadSize 
+    res.writeHead(200, { 
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*'
+    });
+    res.end(JSON.stringify({ 
+        status: 'online', 
+        players: players ? players.size : 0,
+        timestamp: Date.now(),
+        message: 'Godot Multiplayer Server is running!'
+    }));
 });
 
 const players = new Map();
-const roomManager = new RoomManager();
-const chatManager = new ChatManager();
+let playerIdCounter = 0;
+
+const wss = new WebSocketServer({ 
+    server,
+    // تنظیمات مهم برای Railway
+    perMessageDeflate: false,
+    clientTracking: true
+});
 
 console.log(`🚀 Server started on port ${PORT}`);
-console.log(`🌍 Environment: ${config.environment}`);
 
-// بقیه کدهای WebSocket مثل قبل...
-wss.on("connection", (ws) => {
-    const player = new Player();
-    players.set(player.id, { ws, player });
+// هندل کردن خطاهای WebSocket
+wss.on('error', (error) => {
+    console.error('WebSocket Error:', error);
+});
 
-    console.log(`✅ Player Connected: ${player.id}`);
+wss.on("connection", (ws, req) => {
+    const id = ++playerIdCounter;
+    const ip = req.socket.remoteAddress;
+    
+    players.set(id, { 
+        id, 
+        name: `Player${id}`, 
+        x: 0, y: 0, z: 0, 
+        rot: 0, animation: "idle",
+        ip: ip,
+        connectedAt: Date.now()
+    });
 
-    ws.send(JSON.stringify(Packets.welcome(player.id, getPlayersList())));
-    sendRoomList(ws);
-    ws.send(JSON.stringify(Packets.history(chatManager.getPublicHistory())));
+    console.log(`✅ Player Connected: ${id} from ${ip}`);
+    console.log(`📊 Total players: ${players.size}`);
+
+    // ارسال اطلاعات اولیه
+    try {
+        ws.send(JSON.stringify({
+            type: "welcome",
+            id: id,
+            players: getPlayers()
+        }));
+    } catch(err) {
+        console.log('Error sending welcome:', err);
+    }
 
     ws.on("message", (message) => {
         try {
-            const packet = parsePacket(message);
-            const playerData = players.get(player.id);
-            
-            if (!playerData) return;
+            const data = JSON.parse(message);
+            const player = players.get(id);
+            if (!player) return;
 
-            const { player: currentPlayer, ws: clientWs } = playerData;
-
-            switch (packet.type) {
+            switch(data.type) {
                 case "update":
-                    currentPlayer.updatePosition(
-                        packet.x, packet.y, packet.z, 
-                        packet.rot, packet.animation
-                    );
-                    broadcastPlayers();
+                    player.x = data.x || 0;
+                    player.y = data.y || 0;
+                    player.z = data.z || 0;
+                    player.rot = data.rot || 0;
+                    player.animation = data.animation || "idle";
+                    broadcast({
+                        type: "players",
+                        players: getPlayers()
+                    });
                     break;
 
                 case "set_name":
-                    if (currentPlayer.setName(packet.name)) {
-                        broadcastPlayers();
-                    } else {
-                        ws.send(JSON.stringify(Packets.error("Invalid name")));
-                    }
-                    break;
-
-                case "set_job":
-                    if (currentPlayer.setJob(packet.job)) {
-                        broadcastPlayers();
-                    } else {
-                        ws.send(JSON.stringify(Packets.error("Invalid job")));
+                    if (data.name && data.name.length > 0 && data.name.length <= 20) {
+                        player.name = data.name;
+                        broadcast({
+                            type: "players",
+                            players: getPlayers()
+                        });
                     }
                     break;
 
                 case "chat":
-                    if (packet.message && packet.message.trim()) {
-                        const msg = chatManager.addPublicMessage(
-                            player.id, 
-                            currentPlayer.name, 
-                            packet.message
-                        );
-                        
-                        broadcast(JSON.stringify(Packets.chatMessage(
-                            player.id,
-                            currentPlayer.name,
-                            msg.message
-                        )));
-                    }
-                    break;
-
-                case "private_chat":
-                    if (packet.toId && packet.message) {
-                        const msg = chatManager.addPrivateMessage(
-                            player.id,
-                            currentPlayer.name,
-                            packet.toId,
-                            packet.toName || "Unknown",
-                            packet.message
-                        );
-                        
-                        ws.send(JSON.stringify(Packets.privateMessage(
-                            player.id,
-                            currentPlayer.name,
-                            msg.message
-                        )));
-                        
-                        const target = players.get(packet.toId);
-                        if (target && target.ws.readyState === 1) {
-                            target.ws.send(JSON.stringify(Packets.privateMessage(
-                                player.id,
-                                currentPlayer.name,
-                                msg.message
-                            )));
-                        }
-                    }
-                    break;
-
-                case "room_chat":
-                    const roomId = roomManager.findPlayerRoom(player.id);
-                    if (roomId && packet.message) {
-                        const msg = chatManager.addRoomMessage(
-                            roomId,
-                            player.id,
-                            currentPlayer.name,
-                            packet.message
-                        );
-                        
-                        broadcastToRoom(roomId, JSON.stringify(Packets.roomMessage(
-                            roomId,
-                            player.id,
-                            currentPlayer.name,
-                            msg.message
-                        )));
-                    } else {
-                        ws.send(JSON.stringify(Packets.error("You're not in a room")));
+                    if (data.message && data.message.trim()) {
+                        console.log(`💬 ${player.name}: ${data.message}`);
+                        broadcast({
+                            type: "chat",
+                            id: id,
+                            name: player.name,
+                            message: data.message.substring(0, 200)
+                        });
                     }
                     break;
 
                 case "ping":
-                    ws.send(JSON.stringify(Packets.pong()));
-                    break;
-
-                case "create_room":
-                    const createResult = roomManager.createRoom(
-                        player.id,
-                        packet.name || "New Room",
-                        packet.maxPlayers || config.maxPlayersPerRoom,
-                        packet.private || false,
-                        packet.password || null
-                    );
-                    
-                    if (createResult.success) {
-                        roomManager.joinRoom(createResult.roomId, currentPlayer);
-                        broadcastRooms();
-                        ws.send(JSON.stringify(Packets.roomCreated(
-                            createResult.roomId,
-                            createResult.room
-                        )));
-                    } else {
-                        ws.send(JSON.stringify(Packets.error(createResult.message)));
-                    }
-                    break;
-
-                case "join_room":
-                    const joinResult = roomManager.joinRoom(
-                        packet.roomId,
-                        currentPlayer,
-                        packet.password || null
-                    );
-                    
-                    if (joinResult.success) {
-                        broadcastRooms();
-                        ws.send(JSON.stringify(Packets.roomJoined(
-                            packet.roomId,
-                            roomManager.getRoom(packet.roomId)
-                        )));
-                        
-                        ws.send(JSON.stringify(Packets.history(
-                            chatManager.getRoomHistory(packet.roomId)
-                        )));
-                    } else {
-                        ws.send(JSON.stringify(Packets.error(joinResult.message)));
-                    }
-                    break;
-
-                case "leave_room":
-                    const currentRoomId = roomManager.findPlayerRoom(player.id);
-                    if (currentRoomId) {
-                        roomManager.leaveRoom(currentRoomId, player.id);
-                        broadcastRooms();
-                        ws.send(JSON.stringify(Packets.roomLeft(currentRoomId)));
-                    }
-                    break;
-
-                case "start_game":
-                    const startRoomId = roomManager.findPlayerRoom(player.id);
-                    if (startRoomId) {
-                        const startResult = roomManager.startGame(startRoomId, player.id);
-                        if (startResult.success) {
-                            broadcastToRoom(startRoomId, JSON.stringify(
-                                Packets.gameStarted(startRoomId)
-                            ));
-                        } else {
-                            ws.send(JSON.stringify(Packets.error(startResult.message)));
-                        }
-                    } else {
-                        ws.send(JSON.stringify(Packets.error("You're not in a room")));
-                    }
-                    break;
-
-                case "list_rooms":
-                    sendRoomList(ws);
-                    break;
-
-                case "request_history":
-                    const historyType = packet.historyType || "public";
-                    let history = [];
-                    
-                    if (historyType === "public") {
-                        history = chatManager.getPublicHistory();
-                    } else if (historyType === "private" && packet.withId) {
-                        history = chatManager.getPrivateHistory(
-                            player.id, 
-                            packet.withId
-                        );
-                    } else if (historyType === "room") {
-                        const playerRoomId = roomManager.findPlayerRoom(player.id);
-                        if (playerRoomId) {
-                            history = chatManager.getRoomHistory(playerRoomId);
-                        }
-                    }
-                    
-                    ws.send(JSON.stringify(Packets.history(history)));
+                    ws.send(JSON.stringify({ type: "pong", time: Date.now() }));
                     break;
 
                 default:
-                    ws.send(JSON.stringify(Packets.error(`Unknown packet type: ${packet.type}`)));
+                    console.log(`Unknown packet type: ${data.type} from ${player.name}`);
             }
-        } catch (err) {
-            console.log("Error:", err.message);
-            ws.send(JSON.stringify(Packets.error(err.message)));
+        } catch(err) {
+            console.log("Error processing message:", err.message);
         }
     });
 
-    ws.on("close", () => {
-        console.log(`❌ Player Left: ${player.id}`);
-        
-        const roomId = roomManager.findPlayerRoom(player.id);
-        if (roomId) {
-            roomManager.leaveRoom(roomId, player.id);
-            broadcastRooms();
-        }
-        
-        players.delete(player.id);
-        broadcastPlayers();
+    ws.on("close", (code, reason) => {
+        console.log(`❌ Player Left: ${id} (${players.get(id)?.name || 'Unknown'})`);
+        players.delete(id);
+        broadcast({
+            type: "players",
+            players: getPlayers()
+        });
+        console.log(`📊 Total players: ${players.size}`);
+    });
+
+    ws.on("error", (error) => {
+        console.log(`WebSocket error for player ${id}:`, error.message);
     });
 });
 
-// --- توابع کمکی ---
-
-function getPlayersList() {
-    return Array.from(players.values()).map(({ player }) => player.toJSON());
+function getPlayers() {
+    return Array.from(players.values()).map(p => ({
+        id: p.id,
+        name: p.name,
+        x: p.x,
+        y: p.y,
+        z: p.z,
+        rot: p.rot,
+        animation: p.animation
+    }));
 }
 
-function broadcastPlayers() {
-    broadcast(JSON.stringify(Packets.players(getPlayersList())));
-}
-
-function broadcastRooms() {
-    broadcast(JSON.stringify(Packets.rooms(roomManager.getRoomsList())));
-}
-
-function sendRoomList(ws) {
-    ws.send(JSON.stringify(Packets.rooms(roomManager.getRoomsList())));
-}
-
-function broadcastToRoom(roomId, packetString) {
-    const room = roomManager.rooms?.get(roomId);
-    if (!room) return;
-
-    room.players.forEach((player) => {
-        const playerData = players.get(player.id);
-        if (playerData && playerData.ws.readyState === 1) {
-            playerData.ws.send(packetString);
-        }
-    });
-}
-
-function broadcast(packetString) {
-    wss.clients.forEach((client) => {
+function broadcast(packet) {
+    const json = JSON.stringify(packet);
+    wss.clients.forEach(client => {
         if (client.readyState === 1) {
-            client.send(packetString);
+            try {
+                client.send(json);
+            } catch(err) {
+                // Client disconnected
+            }
         }
     });
 }
 
-// Health check برای Railway
+// Health check
 setInterval(() => {
-    console.log(`💚 Health check: ${players.size} players, ${roomManager.rooms.size} rooms`);
+    console.log(`💚 Health: ${players.size} players, ${wss.clients.size} clients`);
 }, 30000);
 
-// گوش دادن به درخواست‌های HTTP و WebSocket
-server.listen(PORT, () => {
+// جلوگیری از خاموش شدن سرور
+server.on('error', (error) => {
+    console.error('Server error:', error);
+});
+
+server.listen(PORT, '0.0.0.0', () => {
     console.log(`✅ HTTP & WebSocket server running on port ${PORT}`);
+    console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
+});
+
+// هندل کردن SIGTERM (خاموش شدن توسط Railway)
+process.on('SIGTERM', () => {
+    console.log('Received SIGTERM signal, closing server...');
+    server.close(() => {
+        console.log('Server closed');
+        process.exit(0);
+    });
+});
+
+process.on('SIGINT', () => {
+    console.log('Received SIGINT signal, closing server...');
+    server.close(() => {
+        console.log('Server closed');
+        process.exit(0);
+    });
 });
