@@ -22,14 +22,12 @@ let playerIdCounter = 0;
 
 const wss = new WebSocketServer({ 
     server,
-    // تنظیمات مهم برای Railway
     perMessageDeflate: false,
     clientTracking: true
 });
 
 console.log(`🚀 Server started on port ${PORT}`);
 
-// هندل کردن خطاهای WebSocket
 wss.on('error', (error) => {
     console.error('WebSocket Error:', error);
 });
@@ -38,11 +36,16 @@ wss.on("connection", (ws, req) => {
     const id = ++playerIdCounter;
     const ip = req.socket.remoteAddress;
     
+    // ============================================================
+    // ✅ ایجاد بازیکن با نام و شغل پیش‌فرض
+    // ============================================================
     players.set(id, { 
         id, 
-        name: `Player${id}`, 
+        name: `بازیکن_${id}`, 
+        job: 'بیکار',  // 👈 شغل پیش‌فرض اضافه شد
         x: 0, y: 0, z: 0, 
-        rot: 0, animation: "idle",
+        rot: 0, 
+        animation: "idle",
         ip: ip,
         connectedAt: Date.now()
     });
@@ -50,7 +53,9 @@ wss.on("connection", (ws, req) => {
     console.log(`✅ Player Connected: ${id} from ${ip}`);
     console.log(`📊 Total players: ${players.size}`);
 
-    // ارسال اطلاعات اولیه
+    // ============================================================
+    // 📤 ارسال اطلاعات اولیه
+    // ============================================================
     try {
         ws.send(JSON.stringify({
             type: "welcome",
@@ -61,6 +66,9 @@ wss.on("connection", (ws, req) => {
         console.log('Error sending welcome:', err);
     }
 
+    // ============================================================
+    // 📨 دریافت پیام‌ها
+    // ============================================================
     ws.on("message", (message) => {
         try {
             const data = JSON.parse(message);
@@ -68,6 +76,9 @@ wss.on("connection", (ws, req) => {
             if (!player) return;
 
             switch(data.type) {
+                // ============================================================
+                // 📍 به‌روزرسانی موقعیت
+                // ============================================================
                 case "update":
                     player.x = data.x || 0;
                     player.y = data.y || 0;
@@ -80,28 +91,78 @@ wss.on("connection", (ws, req) => {
                     });
                     break;
 
+                // ============================================================
+                // 🆔 تنظیم نام و شغل (یکجا)
+                // ============================================================
                 case "set_name":
                     if (data.name && data.name.length > 0 && data.name.length <= 20) {
                         player.name = data.name;
+                    }
+                    if (data.job !== undefined) {
+                        player.job = data.job || 'بیکار';
+                    }
+                    
+                    console.log(`📛 ${player.name} (${player.id}) - Job: ${player.job}`);
+                    
+                    // ارسال به همه
+                    broadcast({
+                        type: "players",
+                        players: getPlayers()
+                    });
+                    
+                    // تأیید به خود بازیکن
+                    ws.send(JSON.stringify({
+                        type: "set_name_ack",
+                        name: player.name,
+                        job: player.job
+                    }));
+                    break;
+
+                // ============================================================
+                // 💼 تغییر شغل (جداگانه)
+                // ============================================================
+                case "set_job":
+                    if (data.job !== undefined) {
+                        const oldJob = player.job;
+                        player.job = data.job || 'بیکار';
+                        
+                        console.log(`💼 ${player.name} (${player.id}) job changed: ${oldJob} → ${player.job}`);
+                        
+                        // ارسال به همه
                         broadcast({
                             type: "players",
                             players: getPlayers()
                         });
+                        
+                        // تأیید به خود بازیکن
+                        ws.send(JSON.stringify({
+                            type: "set_job_ack",
+                            job: player.job
+                        }));
                     }
                     break;
 
+                // ============================================================
+                // 💬 چت
+                // ============================================================
                 case "chat":
                     if (data.message && data.message.trim()) {
-                        console.log(`💬 ${player.name}: ${data.message}`);
+                        const msg = data.message.substring(0, 200);
+                        console.log(`💬 ${player.name} (${player.job}): ${msg}`);
+                        
                         broadcast({
                             type: "chat",
                             id: id,
                             name: player.name,
-                            message: data.message.substring(0, 200)
+                            job: player.job,  // 👈 شغل هم به چت اضافه شد
+                            message: msg
                         });
                     }
                     break;
 
+                // ============================================================
+                // 🏓 پینگ
+                // ============================================================
                 case "ping":
                     ws.send(JSON.stringify({ type: "pong", time: Date.now() }));
                     break;
@@ -114,8 +175,12 @@ wss.on("connection", (ws, req) => {
         }
     });
 
+    // ============================================================
+    // 🔌 قطع اتصال
+    // ============================================================
     ws.on("close", (code, reason) => {
-        console.log(`❌ Player Left: ${id} (${players.get(id)?.name || 'Unknown'})`);
+        const player = players.get(id);
+        console.log(`❌ Player Left: ${id} (${player?.name || 'Unknown'})`);
         players.delete(id);
         broadcast({
             type: "players",
@@ -129,10 +194,14 @@ wss.on("connection", (ws, req) => {
     });
 });
 
+// ============================================================
+// 📋 گرفتن لیست بازیکنان
+// ============================================================
 function getPlayers() {
     return Array.from(players.values()).map(p => ({
         id: p.id,
         name: p.name,
+        job: p.job,  // 👈 شغل اضافه شد
         x: p.x,
         y: p.y,
         z: p.z,
@@ -141,6 +210,9 @@ function getPlayers() {
     }));
 }
 
+// ============================================================
+// 📢 پخش پیام به همه
+// ============================================================
 function broadcast(packet) {
     const json = JSON.stringify(packet);
     wss.clients.forEach(client => {
@@ -154,12 +226,16 @@ function broadcast(packet) {
     });
 }
 
-// Health check
+// ============================================================
+// 💚 Health check
+// ============================================================
 setInterval(() => {
     console.log(`💚 Health: ${players.size} players, ${wss.clients.size} clients`);
 }, 30000);
 
-// جلوگیری از خاموش شدن سرور
+// ============================================================
+// 🛑 مدیریت خطاها
+// ============================================================
 server.on('error', (error) => {
     console.error('Server error:', error);
 });
@@ -169,7 +245,9 @@ server.listen(PORT, '0.0.0.0', () => {
     console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
 });
 
-// هندل کردن SIGTERM (خاموش شدن توسط Railway)
+// ============================================================
+// 🛑 هندل کردن SIGTERM و SIGINT
+// ============================================================
 process.on('SIGTERM', () => {
     console.log('Received SIGTERM signal, closing server...');
     server.close(() => {
