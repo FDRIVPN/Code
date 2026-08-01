@@ -1,323 +1,604 @@
-import { WebSocketServer } from "ws";
-import http from "http";
-import url from "url";
+// ============================================================
+// 🖥️ سرور WebSocket - سازگار با کلاینت Godot
+// ============================================================
+// npm install ws uuid
+// node server.js
 
-const PORT = process.env.PORT || 8080;
+const WebSocket = require("ws");
+const http = require("http");
+const { v4: uuidv4 } = require("uuid");
+const url = require("url");
 
-// HTTP Server برای Railway/Health Check
-const server = http.createServer((req, res) => {
-  res.writeHead(200, {
-    'Content-Type': 'application/json',
-    'Access-Control-Allow-Origin': '*'
-  });
-  res.end(JSON.stringify({
-    status: 'online',
-    players: players ? players.size : 0,
-    timestamp: Date.now(),
-    message: 'Godot Multiplayer Server is running!'
-  }));
-});
+// ============================================================
+// ⚙️ تنظیمات
+// ============================================================
+const CONFIG = {
+  PORT: process.env.PORT || 8080,
+  PING_INTERVAL: 30000,       // هر ۳۰ ثانیه ping
+  MAX_MESSAGE_SIZE: 1024 * 64, // 64KB
+  MAX_CLIENTS: 500,
+  POSITION_BROADCAST_RATE: 80, // ms - هر ۸۰ms موقعیت broadcast بشه
+};
 
-const players = new Map();          // کلید: userId واقعی از کلاینت
-let fallbackIdCounter = 0;         // فقط برای حالت fallback
+// ============================================================
+// 📦 ذخیره‌سازی داده
+// ============================================================
+const clients = new Map();        // wsId -> clientData
+const userIdToWsId = new Map();   // userId -> wsId
+const chatBans = new Map();       // userId -> banData
 
-const wss = new WebSocketServer({
-  server,
-  perMessageDeflate: false,
-  clientTracking: true
-});
+// ساختار clientData:
+// {
+//   ws: WebSocket,
+//   id: string (wsId),
+//   userId: string,
+//   name: string,
+//   job: string,
+//   level: int,
+//   x: float, y: float, z: float,
+//   rot: float,
+//   animation: string,
+//   connectedAt: Date,
+//   lastSeen: Date,
+// }
 
-console.log(`🚀 Server started on port ${PORT}`);
-
-wss.on('error', (error) => {
-  console.error('WebSocket Error:', error);
-});
-
-wss.on("connection", (ws, req) => {
-  // ============================================================
-  // ✅ دریافت userId از Query String (مثلاً ws://server?userId=xxx)
-  // ============================================================
-  const parsedUrl = url.parse(req.url || '', true);
-  const clientUserId = parsedUrl.query.userId;
-
-  let userId;
-
-  if (clientUserId && typeof clientUserId === 'string' && clientUserId.trim().length > 0) {
-    userId = clientUserId.trim();
-    console.log(`📥 Client connected with userId: ${userId}`);
-  } else {
-    // Fallback: اگر کلاینت userId نفرستاد، ID تولید کن (سازگاری با نسخه‌های قدیمی)
-    fallbackIdCounter++;
-    userId = `guest_${fallbackIdCounter}`;
-    console.log(`⚠️ No userId provided, generated fallback ID: ${userId}`);
+// ============================================================
+// 🛠️ توابع کمکی
+// ============================================================
+function sendToClient(ws, data) {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    try {
+      ws.send(JSON.stringify(data));
+    } catch (err) {
+      console.error("❌ Send error:", err.message);
+    }
   }
+}
 
-  // ============================================================
-  // ✅ اگر کاربر با همین ID قبلاً متصل است، اتصال قبلی را قطع کن
-  // ============================================================
-  if (players.has(userId)) {
-    console.log(`🔄 User ${userId} already connected. Disconnecting old connection...`);
-    for (const client of wss.clients) {
-      if (client._userId === userId) {
-        try {
-          client.close(1000, "Replaced by new connection");
-        } catch (e) {
-          console.log("Error closing old connection:", e.message);
-        }
-        break;
+function broadcast(data, excludeWsId = null) {
+  const msg = JSON.stringify(data);
+  clients.forEach((client, wsId) => {
+    if (wsId !== excludeWsId && client.ws.readyState === WebSocket.OPEN) {
+      try {
+        client.ws.send(msg);
+      } catch (err) {
+        console.error("❌ Broadcast error to", wsId, ":", err.message);
       }
     }
-    players.delete(userId);
+  });
+}
+
+function getPlayerSnapshot(client) {
+  return {
+    id: client.userId || client.id,
+    wsId: client.id,
+    name: client.name || "بازیکن",
+    job: client.job || "بیکار",
+    level: client.level || 0,
+    x: client.x || 0,
+    y: client.y || 0,
+    z: client.z || 0,
+    rot: client.rot || 0,
+    animation: client.animation || "idle",
+  };
+}
+
+function getAllPlayersSnapshot(excludeWsId = null) {
+  const players = [];
+  clients.forEach((client, wsId) => {
+    if (wsId !== excludeWsId) {
+      players.push(getPlayerSnapshot(client));
+    }
+  });
+  return players;
+}
+
+function log(emoji, ...args) {
+  const time = new Date().toLocaleTimeString("fa-IR");
+  console.log(`[${time}] ${emoji}`, ...args);
+}
+
+// ============================================================
+// 🚫 سیستم بن
+// ============================================================
+function isUserBanned(userId) {
+  if (!chatBans.has(userId)) return false;
+  const ban = chatBans.get(userId);
+  if (ban.permanent) return true;
+  if (ban.expiresAt && new Date() < new Date(ban.expiresAt)) return true;
+  // بن منقضی شده
+  chatBans.delete(userId);
+  return false;
+}
+
+function getBanInfo(userId) {
+  if (!chatBans.has(userId)) return null;
+  const ban = chatBans.get(userId);
+  const now = new Date();
+  const expires = ban.expiresAt ? new Date(ban.expiresAt) : null;
+  const remainingMs = expires ? expires - now : null;
+  const remainingMin = remainingMs ? Math.ceil(remainingMs / 60000) : null;
+  return {
+    reason: ban.reason || "تخلف",
+    expires_in: ban.permanent
+      ? "دائمی"
+      : remainingMin
+      ? `${remainingMin} دقیقه`
+      : "نامحدود",
+    permanent: ban.permanent || false,
+  };
+}
+
+function banUser(userId, reason, durationHours = 1, permanent = false) {
+  const expiresAt = permanent
+    ? null
+    : new Date(Date.now() + durationHours * 3600 * 1000).toISOString();
+  chatBans.set(userId, {
+    reason,
+    expiresAt,
+    permanent,
+    bannedAt: new Date().toISOString(),
+  });
+  log("🚫", `User ${userId} banned. Reason: ${reason}, Expires: ${expiresAt || "Never"}`);
+
+  // اگه آنلاین بود بهش اطلاع بده
+  const wsId = userIdToWsId.get(userId);
+  if (wsId && clients.has(wsId)) {
+    const client = clients.get(wsId);
+    sendToClient(client.ws, {
+      type: "ban",
+      reason,
+      expires_in: permanent ? "دائمی" : `${durationHours} ساعت`,
+    });
+  }
+}
+
+function unbanUser(userId) {
+  chatBans.delete(userId);
+  log("✅", `User ${userId} unbanned`);
+
+  // اگه آنلاین بود بهش اطلاع بده
+  const wsId = userIdToWsId.get(userId);
+  if (wsId && clients.has(wsId)) {
+    const client = clients.get(wsId);
+    sendToClient(client.ws, { type: "unban" });
+  }
+}
+
+// ============================================================
+// 📨 پردازش پیام‌ها
+// ============================================================
+function handleMessage(wsId, rawData) {
+  let data;
+  try {
+    data = JSON.parse(rawData.toString());
+  } catch {
+    log("⚠️", `Invalid JSON from ${wsId}`);
+    return;
   }
 
-  // ذخیره userId در خود WebSocket برای شناسایی بعدی
-  ws._userId = userId;
+  const client = clients.get(wsId);
+  if (!client) return;
 
-  const ip = req.socket.remoteAddress || 'unknown';
+  client.lastSeen = new Date();
 
-  // ============================================================
-  // ✅ ایجاد بازیکن با ID دریافتی از کلاینت (بدون توکن)
-  // ============================================================
-  players.set(userId, {
-    id: userId,
-    name: `بازیکن_${userId}`,
-    job: 'بیکار',
-    x: 0,
-    y: 0,
-    z: 0,
+  switch (data.type) {
+
+    // ── تنظیم نام و اطلاعات پلیر ──
+    case "set_name": {
+      const oldName = client.name;
+      client.name = (data.name || "بازیکن").slice(0, 32);
+      client.job = (data.job || "بیکار").slice(0, 32);
+
+      // اگه userId از کلاینت اومد و فرق داشت
+      if (data.userId && data.userId !== client.userId) {
+        // آپدیت map
+        if (client.userId) userIdToWsId.delete(client.userId);
+        client.userId = data.userId;
+        userIdToWsId.set(data.userId, wsId);
+      }
+
+      log("📛", `${wsId} set name: ${client.name} | Job: ${client.job} | UserId: ${client.userId}`);
+
+      // به بقیه اطلاع بده
+      broadcast(
+        {
+          type: "player_updated",
+          player: getPlayerSnapshot(client),
+        },
+        wsId
+      );
+      break;
+    }
+
+    // ── آپدیت موقعیت ──
+    case "update": {
+      client.x = typeof data.x === "number" ? data.x : 0;
+      client.y = typeof data.y === "number" ? data.y : 0;
+      client.z = typeof data.z === "number" ? data.z : 0;
+      client.rot = typeof data.rot === "number" ? data.rot : 0;
+      client.animation = data.animation || "idle";
+
+      // broadcast موقعیت به بقیه
+      broadcast(
+        {
+          type: "player_moved",
+          id: client.userId || client.id,
+          x: client.x,
+          y: client.y,
+          z: client.z,
+          rot: client.rot,
+          animation: client.animation,
+        },
+        wsId
+      );
+      break;
+    }
+
+    // ── پیام چت ──
+    case "chat": {
+      if (!data.message || typeof data.message !== "string") return;
+      const msg = data.message.trim().slice(0, 256);
+      if (msg.length === 0) return;
+
+      const userId = client.userId;
+
+      // چک بن
+      if (isUserBanned(userId)) {
+        const banInfo = getBanInfo(userId);
+        sendToClient(client.ws, {
+          type: "error",
+          message: "شما از چت بن شده‌اید",
+          data: {
+            banned: true,
+            reason: banInfo.reason,
+            expires_in: banInfo.expires_in,
+          },
+        });
+        return;
+      }
+
+      log("💬", `[${client.name}] ${msg}`);
+
+      // broadcast به همه
+      broadcast({
+        type: "chat",
+        id: client.userId || client.id,
+        name: client.name,
+        job: client.job,
+        message: msg,
+        timestamp: new Date().toISOString(),
+      });
+      break;
+    }
+
+    // ── پینگ ──
+    case "ping": {
+      sendToClient(client.ws, { type: "pong" });
+      break;
+    }
+
+    // ── دستورات ادمین ──
+    case "admin_ban": {
+      if ((client.level || 0) < 4) {
+        sendToClient(client.ws, {
+          type: "error",
+          message: "دسترسی ادمین لازم است",
+        });
+        return;
+      }
+      const targetId = data.targetUserId;
+      const reason = data.reason || "تخلف";
+      const duration = data.duration || 1; // ساعت
+      const permanent = data.permanent || false;
+      banUser(targetId, reason, duration, permanent);
+      sendToClient(client.ws, {
+        type: "admin_response",
+        success: true,
+        message: `کاربر ${targetId} بن شد`,
+      });
+      break;
+    }
+
+    case "admin_unban": {
+      if ((client.level || 0) < 4) {
+        sendToClient(client.ws, {
+          type: "error",
+          message: "دسترسی ادمین لازم است",
+        });
+        return;
+      }
+      unbanUser(data.targetUserId);
+      sendToClient(client.ws, {
+        type: "admin_response",
+        success: true,
+        message: `کاربر ${data.targetUserId} آزاد شد`,
+      });
+      break;
+    }
+
+    case "admin_kick": {
+      if ((client.level || 0) < 4) return;
+      const targetWsId = userIdToWsId.get(data.targetUserId);
+      if (targetWsId && clients.has(targetWsId)) {
+        const target = clients.get(targetWsId);
+        sendToClient(target.ws, {
+          type: "kicked",
+          reason: data.reason || "اخراج توسط ادمین",
+        });
+        target.ws.close();
+      }
+      break;
+    }
+
+    default:
+      log("⚠️", `Unknown message type: ${data.type} from ${wsId}`);
+  }
+}
+
+// ============================================================
+// 🔌 مدیریت اتصال جدید
+// ============================================================
+function handleConnection(ws, req) {
+  // چک ظرفیت
+  if (clients.size >= CONFIG.MAX_CLIENTS) {
+    ws.close(1013, "Server full");
+    return;
+  }
+
+  // استخراج userId از Query String
+  const parsedUrl = url.parse(req.url, true);
+  const userId = parsedUrl.query.userId || "";
+  const wsId = uuidv4();
+
+  log("🔌", `New connection: wsId=${wsId}, userId=${userId}, IP=${req.socket.remoteAddress}`);
+
+  // ساختن client object
+  const client = {
+    ws,
+    id: wsId,
+    userId: userId || wsId, // اگه userId نداشت، wsId رو به عنوان userId بذار
+    name: "بازیکن",
+    job: "بیکار",
+    level: 0,
+    x: 0, y: 0, z: 0,
     rot: 0,
     animation: "idle",
-    ip: ip,
-    connectedAt: Date.now()
-  });
+    connectedAt: new Date(),
+    lastSeen: new Date(),
+  };
 
-  console.log(`✅ Player Connected: ${userId} from ${ip}`);
-  console.log(`📊 Total players: ${players.size}`);
-
-  // ============================================================
-  // ارسال اطلاعات اولیه (با ID واقعی)
-  // ============================================================
-  try {
-    ws.send(JSON.stringify({
-      type: "welcome",
-      id: userId,              // ✅ ID واقعی را به کلاینت برمی‌گردانیم
-      players: getPlayers()
-    }));
-  } catch (err) {
-    console.log('Error sending welcome:', err);
+  // اگه userId داشت، ذخیره کن
+  if (userId) {
+    // اگه قبلاً با همین userId وصل بود، قطع کن
+    const existingWsId = userIdToWsId.get(userId);
+    if (existingWsId && clients.has(existingWsId)) {
+      const existing = clients.get(existingWsId);
+      log("⚠️", `Duplicate userId ${userId}, disconnecting old session`);
+      sendToClient(existing.ws, {
+        type: "error",
+        message: "اتصال جدید با همین حساب کاربری برقرار شد",
+      });
+      existing.ws.close();
+    }
+    userIdToWsId.set(userId, wsId);
   }
 
-  // ============================================================
-  // دریافت پیام‌ها
-  // ============================================================
-  ws.on("message", (message) => {
-    try {
-      const data = JSON.parse(message);
-      const player = players.get(userId);
-      if (!player) return;
+  clients.set(wsId, client);
 
-      switch (data.type) {
+  // ارسال welcome با لیست همه پلیرها
+  sendToClient(ws, {
+    type: "welcome",
+    id: wsId,
+    userId: client.userId,
+    players: getAllPlayersSnapshot(wsId),
+    serverTime: new Date().toISOString(),
+  });
 
-        // ============================================================
-        // به‌روزرسانی موقعیت
-        // ============================================================
-        case "update":
-          player.x = data.x || 0;
-          player.y = data.y || 0;
-          player.z = data.z || 0;
-          player.rot = data.rot || 0;
-          player.animation = data.animation || "idle";
-          broadcast({
-            type: "players",
-            players: getPlayers()
-          });
-          break;
+  // اطلاع به بقیه
+  broadcast(
+    {
+      type: "player_joined",
+      player: getPlayerSnapshot(client),
+    },
+    wsId
+  );
 
-        // ============================================================
-        // تنظیم نام و شغل (با استفاده از userId دریافتی)
-        // ============================================================
-        case "set_name":
-          // اگر کلاینت userId ارسال کرده، از آن استفاده کن
-          if (data.userId && data.userId !== userId) {
-            console.log(`⚠️ Client sent different userId: ${data.userId} vs ${userId}`);
-            // می‌توانید userId را به‌روز کنید، اما پیشنهاد می‌شود کلاینت را اصلاح کنید
-          }
+  log("👥", `Total clients: ${clients.size}`);
 
-          if (data.name && data.name.length > 0 && data.name.length <= 20) {
-            player.name = data.name;
-          }
-          if (data.job !== undefined) {
-            player.job = data.job || 'بیکار';
-          }
-
-          console.log(`📝 ${player.name} (${player.id}) - Job: ${player.job}`);
-
-          // ارسال به همه
-          broadcast({
-            type: "players",
-            players: getPlayers()
-          });
-
-          // تأیید به خود بازیکن
-          ws.send(JSON.stringify({
-            type: "set_name_ack",
-            name: player.name,
-            job: player.job
-          }));
-          break;
-
-        // ============================================================
-        // تغییر شغل (جداگانه)
-        // ============================================================
-        case "set_job":
-          if (data.job !== undefined) {
-            const oldJob = player.job;
-            player.job = data.job || 'بیکار';
-            console.log(`🔄 ${player.name} (${player.id}) job changed: ${oldJob} → ${player.job}`);
-
-            broadcast({
-              type: "players",
-              players: getPlayers()
-            });
-
-            ws.send(JSON.stringify({
-              type: "set_job_ack",
-              job: player.job
-            }));
-          }
-          break;
-
-        // ============================================================
-        // چت
-        // ============================================================
-        case "chat":
-          if (data.message && data.message.trim()) {
-            const msg = data.message.substring(0, 200);
-            console.log(`💬 ${player.name} (${player.job}): ${msg}`);
-            broadcast({
-              type: "chat",
-              id: userId,                    // ✅ ID واقعی
-              name: player.name,
-              job: player.job,
-              message: msg
-            });
-          }
-          break;
-
-        // ============================================================
-        // پینگ
-        // ============================================================
-        case "ping":
-          ws.send(JSON.stringify({
-            type: "pong",
-            time: Date.now()
-          }));
-          break;
-
-        // ============================================================
-        // دستورات ادمین (اختیاری)
-        // ============================================================
-        case "admin_command":
-          // فقط از userId استفاده می‌شود، توکن نادیده گرفته می‌شود
-          console.log(`👑 Admin command from ${userId}: ${data.command} on ${data.targetId}`);
-          // در اینجا می‌توانید منطق بن را پیاده‌سازی کنید
-          // یا از API اصلی برای بن استفاده کنید
-          break;
-
-        default:
-          console.log(`❓ Unknown packet type: ${data.type} from ${player.name}`);
-      }
-    } catch (err) {
-      console.log("Error processing message:", err.message);
+  // ── دریافت پیام ──
+  ws.on("message", (data) => {
+    if (data.length > CONFIG.MAX_MESSAGE_SIZE) {
+      log("⚠️", `Message too large from ${wsId}`);
+      return;
     }
+    handleMessage(wsId, data);
   });
 
-  // ============================================================
-  // قطع اتصال
-  // ============================================================
+  // ── قطع اتصال ──
   ws.on("close", (code, reason) => {
-    const player = players.get(userId);
-    console.log(`❌ Player Left: ${userId} (${player?.name || 'Unknown'})`);
-    players.delete(userId);
+    log("👋", `Disconnected: ${wsId} | Code: ${code} | Name: ${client.name}`);
+
+    clients.delete(wsId);
+
+    // فقط اگه این wsId آخرین session این userId بود، از map حذف کن
+    if (client.userId && userIdToWsId.get(client.userId) === wsId) {
+      userIdToWsId.delete(client.userId);
+    }
+
+    // اطلاع به بقیه
     broadcast({
-      type: "players",
-      players: getPlayers()
+      type: "player_left",
+      id: client.userId || wsId,
+      wsId: wsId,
+      name: client.name,
     });
-    console.log(`📊 Total players: ${players.size}`);
+
+    log("👥", `Total clients: ${clients.size}`);
   });
 
-  ws.on("error", (error) => {
-    console.log(`WebSocket error for player ${userId}:`, error.message);
+  // ── خطا ──
+  ws.on("error", (err) => {
+    log("❌", `WebSocket error from ${wsId}:`, err.message);
   });
+}
+
+// ============================================================
+// 🔄 Broadcast موقعیت همه پلیرها (هر ۸۰ms)
+// ============================================================
+function startPositionBroadcast() {
+  setInterval(() => {
+    if (clients.size < 2) return;
+
+    const allPlayers = getAllPlayersSnapshot();
+
+    clients.forEach((client) => {
+      if (client.ws.readyState !== WebSocket.OPEN) return;
+
+      // فقط پلیرهای دیگه رو بفرست (نه خودش رو)
+      const otherPlayers = allPlayers.filter(
+        (p) => p.id !== (client.userId || client.id)
+      );
+
+      if (otherPlayers.length === 0) return;
+
+      try {
+        client.ws.send(
+          JSON.stringify({
+            type: "players",
+            players: otherPlayers,
+          })
+        );
+      } catch (err) {
+        // ignore
+      }
+    });
+  }, CONFIG.POSITION_BROADCAST_RATE);
+}
+
+// ============================================================
+// 🫀 Ping/Pong برای چک کردن اتصال‌های مرده
+// ============================================================
+function startHeartbeat(wss) {
+  setInterval(() => {
+    clients.forEach((client, wsId) => {
+      if (client.ws.readyState !== WebSocket.OPEN) {
+        clients.delete(wsId);
+        return;
+      }
+
+      // اگه ۶۰ ثانیه هیچ پیامی نیومد، قطع کن
+      const inactiveMs = Date.now() - client.lastSeen.getTime();
+      if (inactiveMs > 60000) {
+        log("💤", `Inactive client ${wsId}, closing...`);
+        client.ws.terminate();
+        clients.delete(wsId);
+        if (client.userId && userIdToWsId.get(client.userId) === wsId) {
+          userIdToWsId.delete(client.userId);
+        }
+        return;
+      }
+
+      try {
+        client.ws.ping();
+      } catch (err) {
+        // ignore
+      }
+    });
+  }, CONFIG.PING_INTERVAL);
+}
+
+// ============================================================
+// 🌐 HTTP Server (برای Health Check)
+// ============================================================
+const httpServer = http.createServer((req, res) => {
+  const parsedUrl = url.parse(req.url, true);
+
+  // Health check
+  if (parsedUrl.pathname === "/health") {
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(
+      JSON.stringify({
+        status: "ok",
+        clients: clients.size,
+        uptime: process.uptime(),
+        memory: process.memoryUsage(),
+      })
+    );
+    return;
+  }
+
+  // لیست بازیکنان آنلاین (برای API)
+  if (parsedUrl.pathname === "/players") {
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(
+      JSON.stringify({
+        count: clients.size,
+        players: getAllPlayersSnapshot(),
+      })
+    );
+    return;
+  }
+
+  // پیش‌فرض
+  res.writeHead(200, { "Content-Type": "text/plain" });
+  res.end(`🎮 Game Server Running | Players: ${clients.size}`);
 });
 
 // ============================================================
-// گرفتن لیست بازیکنان
+// 🚀 راه‌اندازی WebSocket Server
 // ============================================================
-function getPlayers() {
-  return Array.from(players.values()).map(p => ({
-    id: p.id,
-    name: p.name,
-    job: p.job,
-    x: p.x,
-    y: p.y,
-    z: p.z,
-    rot: p.rot,
-    animation: p.animation,
-    level: p.level || 0
-  }));
-}
+const wss = new WebSocket.Server({
+  server: httpServer,
+  maxPayload: CONFIG.MAX_MESSAGE_SIZE,
+  // مهم: برای Railway/Heroku
+  perMessageDeflate: false,
+});
+
+wss.on("connection", handleConnection);
+
+wss.on("error", (err) => {
+  log("❌", "WebSocket Server Error:", err.message);
+});
+
+// شروع برنامه‌های جانبی
+startPositionBroadcast();
+startHeartbeat(wss);
+
+httpServer.listen(CONFIG.PORT, () => {
+  log("🚀", `Server started on port ${CONFIG.PORT}`);
+  log("🌐", `WebSocket: ws://localhost:${CONFIG.PORT}`);
+  log("💊", `Health: http://localhost:${CONFIG.PORT}/health`);
+  log("👥", `Players: http://localhost:${CONFIG.PORT}/players`);
+});
 
 // ============================================================
-// پخش پیام به همه
-// ============================================================
-function broadcast(packet) {
-  const json = JSON.stringify(packet);
-  wss.clients.forEach(client => {
-    if (client.readyState === 1) {
-      try {
-        client.send(json);
-      } catch (err) {
-        // Client disconnected
-      }
-    }
-  });
-}
-
-// ============================================================
-// Health check
+// 📊 لاگ وضعیت هر ۵ دقیقه
 // ============================================================
 setInterval(() => {
-  console.log(`💚 Health: ${players.size} players, ${wss.clients.size} clients`);
-}, 30000);
+  log(
+    "📊",
+    `Status | Clients: ${clients.size} | Banned: ${chatBans.size} | Uptime: ${Math.floor(process.uptime() / 60)}min`
+  );
+}, 300000);
 
 // ============================================================
-// مدیریت خطاها
+// 🛑 Graceful Shutdown
 // ============================================================
-server.on('error', (error) => {
-  console.error('Server error:', error);
-});
-
-server.listen(PORT, '0.0.0.0', () => {
-  console.log(`✅ HTTP & WebSocket server running on port ${PORT}`);
-  console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
-});
-
-// ============================================================
-// هندل کردن SIGTERM و SIGINT
-// ============================================================
-process.on('SIGTERM', () => {
-  console.log('Received SIGTERM signal, closing server...');
-  server.close(() => {
-    console.log('Server closed');
+process.on("SIGTERM", () => {
+  log("🛑", "SIGTERM received, shutting down...");
+  broadcast({ type: "server_shutdown", message: "سرور در حال بستن شدن است..." });
+  setTimeout(() => {
+    wss.close();
+    httpServer.close();
     process.exit(0);
-  });
+  }, 2000);
 });
 
-process.on('SIGINT', () => {
-  console.log('Received SIGINT signal, closing server...');
-  server.close(() => {
-    console.log('Server closed');
-    process.exit(0);
-  });
+process.on("uncaughtException", (err) => {
+  log("💥", "Uncaught Exception:", err.message, err.stack);
+});
+
+process.on("unhandledRejection", (reason) => {
+  log("💥", "Unhandled Rejection:", reason);
 });
