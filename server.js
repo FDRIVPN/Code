@@ -4,7 +4,7 @@ import url from "url";
 
 const PORT = process.env.PORT || 8080;
 
-// HTTP Server برای Railway
+// HTTP Server برای Railway/Health Check
 const server = http.createServer((req, res) => {
   res.writeHead(200, {
     'Content-Type': 'application/json',
@@ -18,8 +18,8 @@ const server = http.createServer((req, res) => {
   }));
 });
 
-const players = new Map();     // کلید: userId واقعی از کلاینت
-let playerIdCounter = 0;      // فقط برای حالت fallback (در صورت عدم ارسال userId)
+const players = new Map();          // کلید: userId واقعی از کلاینت
+let fallbackIdCounter = 0;         // فقط برای حالت fallback
 
 const wss = new WebSocketServer({
   server,
@@ -47,7 +47,8 @@ wss.on("connection", (ws, req) => {
     console.log(`📥 Client connected with userId: ${userId}`);
   } else {
     // Fallback: اگر کلاینت userId نفرستاد، ID تولید کن (سازگاری با نسخه‌های قدیمی)
-    userId = ++playerIdCounter;
+    fallbackIdCounter++;
+    userId = `guest_${fallbackIdCounter}`;
     console.log(`⚠️ No userId provided, generated fallback ID: ${userId}`);
   }
 
@@ -55,18 +56,16 @@ wss.on("connection", (ws, req) => {
   // ✅ اگر کاربر با همین ID قبلاً متصل است، اتصال قبلی را قطع کن
   // ============================================================
   if (players.has(userId)) {
-    const existingPlayer = players.get(userId);
     console.log(`🔄 User ${userId} already connected. Disconnecting old connection...`);
-    try {
-      // پیدا کردن WebSocket متناظر با کاربر قبلی
-      for (const client of wss.clients) {
-        if (client._userId === userId) {
+    for (const client of wss.clients) {
+      if (client._userId === userId) {
+        try {
           client.close(1000, "Replaced by new connection");
-          break;
+        } catch (e) {
+          console.log("Error closing old connection:", e.message);
         }
+        break;
       }
-    } catch (e) {
-      console.log("Error closing old connection:", e.message);
     }
     players.delete(userId);
   }
@@ -74,10 +73,10 @@ wss.on("connection", (ws, req) => {
   // ذخیره userId در خود WebSocket برای شناسایی بعدی
   ws._userId = userId;
 
-  const ip = req.socket.remoteAddress;
+  const ip = req.socket.remoteAddress || 'unknown';
 
   // ============================================================
-  // ✅ ایجاد بازیکن با ID دریافتی از کلاینت
+  // ✅ ایجاد بازیکن با ID دریافتی از کلاینت (بدون توکن)
   // ============================================================
   players.set(userId, {
     id: userId,
@@ -138,10 +137,10 @@ wss.on("connection", (ws, req) => {
         // تنظیم نام و شغل (با استفاده از userId دریافتی)
         // ============================================================
         case "set_name":
-          // اگر کلاینت userId ارسال کرده، از آن استفاده کن (و در صورت مغایرت، هشدار بده)
+          // اگر کلاینت userId ارسال کرده، از آن استفاده کن
           if (data.userId && data.userId !== userId) {
             console.log(`⚠️ Client sent different userId: ${data.userId} vs ${userId}`);
-            // می‌توانید در اینجا userId را به‌روز کنید، اما پیشنهاد می‌شود کلاینت را اصلاح کنید
+            // می‌توانید userId را به‌روز کنید، اما پیشنهاد می‌شود کلاینت را اصلاح کنید
           }
 
           if (data.name && data.name.length > 0 && data.name.length <= 20) {
@@ -215,6 +214,16 @@ wss.on("connection", (ws, req) => {
           }));
           break;
 
+        // ============================================================
+        // دستورات ادمین (اختیاری)
+        // ============================================================
+        case "admin_command":
+          // فقط از userId استفاده می‌شود، توکن نادیده گرفته می‌شود
+          console.log(`👑 Admin command from ${userId}: ${data.command} on ${data.targetId}`);
+          // در اینجا می‌توانید منطق بن را پیاده‌سازی کنید
+          // یا از API اصلی برای بن استفاده کنید
+          break;
+
         default:
           console.log(`❓ Unknown packet type: ${data.type} from ${player.name}`);
       }
@@ -254,7 +263,8 @@ function getPlayers() {
     y: p.y,
     z: p.z,
     rot: p.rot,
-    animation: p.animation
+    animation: p.animation,
+    level: p.level || 0
   }));
 }
 
