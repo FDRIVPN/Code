@@ -4,7 +4,7 @@
 // npm install ws uuid
 // node server.js
 
-const WebSocket = require("ws");
+const WebSocket = require("wss");
 const http = require("http");
 const { v4: uuidv4 } = require("uuid");
 const url = require("url");
