@@ -1,25 +1,21 @@
 const WebSocket = require('ws');
-const axios = require('axios');
+
 const PORT = process.env.PORT || 8080;
 
-// ============================================================
-// 📊 ذخیره‌سازی بازیکنان (کلید: userId واقعی)
-// ============================================================
-const players = new Map(); // userId -> { ws, name, job, position, rotation }
+// ذخیره‌سازی بازیکنان: userId -> { ws, name, job, position, rotation }
+const players = new Map();
 
-// ============================================================
-// 🚀 راه‌اندازی سرور
-// ============================================================
 const wss = new WebSocket.Server({ port: PORT });
-console.log(`✅ WebSocket Server running on ws://localhost:${PORT}`);
+
+console.log(`✅ WebSocket server running on ws://localhost:${PORT}`);
 
 wss.on('connection', (ws) => {
     console.log('🔗 New client connected');
 
-    ws.on('message', async (message) => {
+    ws.on('message', (message) => {
         try {
             const data = JSON.parse(message);
-            await handleMessage(ws, data);
+            handleMessage(ws, data);
         } catch (e) {
             console.error('❌ Error parsing message:', e);
             sendError(ws, 'Invalid JSON');
@@ -34,12 +30,12 @@ wss.on('connection', (ws) => {
 // ============================================================
 // 📨 پردازش پیام‌ها
 // ============================================================
-async function handleMessage(ws, data) {
+function handleMessage(ws, data) {
     const { type } = data;
 
     switch (type) {
         case 'set_id':
-            await handleSetId(ws, data);
+            handleSetId(ws, data);
             break;
         case 'update':
             handleUpdate(ws, data);
@@ -51,6 +47,7 @@ async function handleMessage(ws, data) {
             handlePing(ws);
             break;
         default:
+            console.warn(`⚠️ Unknown message type: ${type}`);
             sendError(ws, `Unknown type: ${type}`);
     }
 }
@@ -58,7 +55,7 @@ async function handleMessage(ws, data) {
 // ============================================================
 // 👤 احراز هویت با userId (بدون توکن)
 // ============================================================
-async function handleSetId(ws, data) {
+function handleSetId(ws, data) {
     const userId = data.id;
     const name = data.name || 'بازیکن';
     const job = data.job || 'بیکار';
@@ -137,7 +134,7 @@ function handleUpdate(ws, data) {
 }
 
 // ============================================================
-// 💬 چت (بدون توکن)
+// 💬 چت
 // ============================================================
 function handleChat(ws, data) {
     const userId = getUserIdByWs(ws);
@@ -234,6 +231,9 @@ function sendError(ws, msg) {
     sendToClient(ws, { type: 'error', message: msg });
 }
 
+// ============================================================
+// 📊 آمار
+// ============================================================
 setInterval(() => {
-    console.log(`📊 Online: ${players.size} players`);
+    console.log(`📊 Online players: ${players.size}`);
 }, 30000);
