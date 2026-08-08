@@ -6,7 +6,7 @@ export default class Vehicle {
     this.ownerId = ownerId;
     this.name = name;
     this.job = job;
-    this.position = { ...position };
+    this.position = { ...position }; // position باید شامل x,y,z باشد
     this.rotation = rotation;
     this.steering = steering || 0;
     this.car_db_id = car_db_id || null;
