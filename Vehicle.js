@@ -7,7 +7,7 @@ export default class Vehicle {
     this.position = { ...position };
     this.rotation = rotation;
     this.steering = steering || 0;
-    this.seats = [ownerId, null, null, null];
+    this.seats = [ownerId, null, null, null]; // صندلی ۰ مالک
   }
 
   isSeatAvailable(seatIndex) {
