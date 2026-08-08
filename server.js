@@ -20,7 +20,7 @@ const banManager = new BanManager();
 const chat = new Chat(banManager);
 
 // ============================================================
-// 📊 لاگ دوره‌ای وضعیت (هر ۵۰۰ میلی‌ثانیه)
+// 📊 لاگ دوره‌ای وضعیت (هر ۵۰۰ میلی‌ثانیه) - سه‌بعدی
 // ============================================================
 setInterval(() => {
   const playerCount = players.size;
@@ -34,7 +34,7 @@ setInterval(() => {
   if (playerCount > 0) {
     console.log(`   📋 Players:`);
     for (const [id, player] of players) {
-      console.log(`      - ${id.substring(0, 8)}... | Name: "${player.name || 'Unknown'}" | Pos: (${player.position.x.toFixed(1)}, ${player.position.y.toFixed(1)}) | Rot: ${player.rotation.toFixed(2)} | Vehicle: ${player.vehicleId ? player.vehicleId.substring(0, 8)+'...' : 'None'}`);
+      console.log(`      - ${id.substring(0, 8)}... | Name: "${player.name || 'Unknown'}" | Pos: (${player.position.x.toFixed(1)}, ${player.position.y.toFixed(1)}, ${player.position.z.toFixed(1)}) | Rot: ${player.rotation.toFixed(2)} | Vehicle: ${player.vehicleId ? player.vehicleId.substring(0, 8)+'...' : 'None'}`);
     }
   }
 
@@ -42,7 +42,7 @@ setInterval(() => {
     console.log(`   🚗 Vehicles:`);
     for (const [id, vehicle] of vehicleManager.vehicles) {
       const seats = vehicle.seats.map(s => s ? s.substring(0, 8)+'...' : 'Empty');
-      console.log(`      - ${id.substring(0, 8)}... | Owner: ${vehicle.ownerId.substring(0, 8)}... | CarDB: ${vehicle.car_db_id || 'N/A'} | Pos: (${vehicle.position.x.toFixed(1)}, ${vehicle.position.y.toFixed(1)}) | Seats: [${seats.join(', ')}]`);
+      console.log(`      - ${id.substring(0, 8)}... | Owner: ${vehicle.ownerId.substring(0, 8)}... | CarDB: ${vehicle.car_db_id || 'N/A'} | Pos: (${vehicle.position.x.toFixed(1)}, ${vehicle.position.y.toFixed(1)}, ${vehicle.position.z.toFixed(1)}) | Seats: [${seats.join(', ')}]`);
     }
   }
   console.log(`─────────────────────────────────────────────`);
@@ -131,7 +131,7 @@ wss.on('connection', (ws) => {
 });
 
 // ============================================================
-// 📨 پردازش پیام‌ها
+// 📨 پردازش پیام‌ها (سه‌بعدی)
 // ============================================================
 function handleMessage(player, data) {
   if (player.isBanned) {
@@ -144,8 +144,15 @@ function handleMessage(player, data) {
   switch (type) {
     case PacketType.UPDATE: {
       if (data.position) {
-        player.position = data.position;
-        console.log(`🔄 [${new Date().toISOString()}] Player ${player.id.substring(0, 8)}... moved to (${player.position.x.toFixed(1)}, ${player.position.y.toFixed(1)})`);
+        // position باید شامل x, y, z باشد
+        if (typeof data.position.x === 'number' && typeof data.position.y === 'number' && typeof data.position.z === 'number') {
+          player.position = { x: data.position.x, y: data.position.y, z: data.position.z };
+          console.log(`🔄 [${new Date().toISOString()}] Player ${player.id.substring(0, 8)}... moved to (${player.position.x.toFixed(1)}, ${player.position.y.toFixed(1)}, ${player.position.z.toFixed(1)})`);
+        } else {
+          console.log(`⚠️ Invalid position data from ${player.id.substring(0, 8)}...`);
+          player.send({ type: PacketType.ERROR, message: 'Invalid position format (need x, y, z)' });
+          return;
+        }
       }
       if (data.rotation !== undefined) {
         player.rotation = data.rotation;
@@ -172,7 +179,12 @@ function handleMessage(player, data) {
         player.send({ type: PacketType.ERROR, message: 'Missing vehicle data' });
         return;
       }
-      // (اختیاری) اگر می‌خواهید هر مالک فقط یک ماشین داشته باشد، این بخش را فعال کنید:
+      // بررسی وجود x, y, z در position
+      if (typeof position.x !== 'number' || typeof position.y !== 'number' || typeof position.z !== 'number') {
+        player.send({ type: PacketType.ERROR, message: 'Position must have x, y, z' });
+        return;
+      }
+      // (اختیاری) محدودیت تعداد ماشین‌های هر مالک
       // if (vehicleManager.findVehiclesByOwner(player.id).length > 0) {
       //   player.send({ type: PacketType.ERROR, message: 'You already own a vehicle' });
       //   return;
@@ -193,7 +205,7 @@ function handleMessage(player, data) {
       }
       player.name = name;
       player.job = job;
-      console.log(`🚗 [${new Date().toISOString()}] Vehicle created by ${player.id.substring(0, 8)}... (ID: ${vehicle.id.substring(0, 8)}..., CarDB: ${vehicle.car_db_id}) at (${position.x}, ${position.y})`);
+      console.log(`🚗 [${new Date().toISOString()}] Vehicle created by ${player.id.substring(0, 8)}... (ID: ${vehicle.id.substring(0, 8)}..., CarDB: ${vehicle.car_db_id}) at (${position.x}, ${position.y}, ${position.z})`);
       
       const stateMsg = { type: PacketType.VEHICLE_STATE, vehicle: vehicle.getState() };
       player.send(stateMsg);
@@ -250,7 +262,6 @@ function handleMessage(player, data) {
         player.vehicleId = null;
         player.seatIndex = null;
       } else {
-        // مسافر خارج می‌شود → فقط از صندلی خارج می‌شود
         const seat = vehicle.removePassenger(player.id);
         if (seat === -1) {
           player.send({ type: PacketType.ERROR, message: 'You are not in this vehicle' });
@@ -266,16 +277,24 @@ function handleMessage(player, data) {
     }
 
     case PacketType.UPDATE_VEHICLE: {
-      // پیدا کردن ماشین بر اساس ownerId
       const vehicles = vehicleManager.findVehiclesByOwner(player.id);
       if (vehicles.length === 0) {
         player.send({ type: PacketType.ERROR, message: 'You don\'t own a vehicle' });
         return;
       }
-      const vehicle = vehicles[0]; // هر مالک فقط یک ماشین دارد (یا اولین ماشین)
+      const vehicle = vehicles[0];
       const { position, rotation, steering } = data;
-      vehicle.updateState(position, rotation, steering);
-      console.log(`🚗 [${new Date().toISOString()}] Vehicle ${vehicle.id.substring(0, 8)}... (CarDB: ${vehicle.car_db_id}) updated: Pos(${vehicle.position.x.toFixed(1)}, ${vehicle.position.y.toFixed(1)}) Rot: ${vehicle.rotation.toFixed(2)} Steer: ${vehicle.steering.toFixed(2)}`);
+      if (position) {
+        // بررسی وجود x, y, z
+        if (typeof position.x !== 'number' || typeof position.y !== 'number' || typeof position.z !== 'number') {
+          player.send({ type: PacketType.ERROR, message: 'Position must have x, y, z' });
+          return;
+        }
+        vehicle.updateState(position, rotation, steering);
+      } else {
+        vehicle.updateState(null, rotation, steering);
+      }
+      console.log(`🚗 [${new Date().toISOString()}] Vehicle ${vehicle.id.substring(0, 8)}... (CarDB: ${vehicle.car_db_id}) updated: Pos(${vehicle.position.x.toFixed(1)}, ${vehicle.position.y.toFixed(1)}, ${vehicle.position.z.toFixed(1)}) Rot: ${vehicle.rotation.toFixed(2)} Steer: ${vehicle.steering.toFixed(2)}`);
       
       const stateMsg = { type: PacketType.VEHICLE_STATE, vehicle: vehicle.getState() };
       player.send(stateMsg);
