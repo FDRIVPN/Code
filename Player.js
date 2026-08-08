@@ -6,10 +6,10 @@ export default class Player {
     this.ws = ws;
     this.name = '';
     this.job = '';
-    this.position = { x: 0, y: 0 };
+    this.position = { x: 0, y: 0, z: 0 };
     this.rotation = 0;
-    this.vehicleId = null;   // شناسه ماشینی که سوار است
-    this.seatIndex = null;   // شماره صندلی
+    this.vehicleId = null;
+    this.seatIndex = null;
     this.isBanned = false;
   }
 
