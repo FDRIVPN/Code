@@ -2,14 +2,14 @@ import { randomUUID } from 'crypto';
 
 export default class Vehicle {
   constructor(ownerId, name, job, position, rotation, steering, car_db_id) {
-    this.id = randomUUID();          // ID یکتای ماشین
-    this.ownerId = ownerId;          // ID مالک (پلیر)
+    this.id = randomUUID();
+    this.ownerId = ownerId;
     this.name = name;
     this.job = job;
     this.position = { ...position };
     this.rotation = rotation;
     this.steering = steering || 0;
-    this.car_db_id = car_db_id || null;  // شناسه ماشین از دیتابیس (اختیاری)
+    this.car_db_id = car_db_id || null;
     this.seats = [ownerId, null, null, null];
   }
 
