@@ -2,12 +2,12 @@ import Vehicle from './Vehicle.js';
 
 export default class VehicleManager {
   constructor() {
-    this.vehicles = new Map(); // key: CAR_DB_ID, value: Vehicle
+    this.vehicles = new Map(); // key: vehicleId, value: Vehicle
   }
 
-  createVehicle(ownerId, name, job, position, rotation, steering) {
-    const vehicle = new Vehicle(ownerId, name, job, position, rotation, steering);
-    this.vehicles.set(vehicle.CAR_DB_ID, vehicle);
+  createVehicle(ownerId, name, job, position, rotation, steering, car_db_id) {
+    const vehicle = new Vehicle(ownerId, name, job, position, rotation, steering, car_db_id);
+    this.vehicles.set(vehicle.id, vehicle);
     return vehicle;
   }
 
