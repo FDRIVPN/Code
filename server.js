@@ -19,13 +19,10 @@ const vehicleManager = new VehicleManager();
 const banManager = new BanManager();
 const chat = new Chat(banManager);
 
-// ============================================================
-// 📊 لاگ دوره‌ای وضعیت (هر ۵۰۰ میلی‌ثانیه)
-// ============================================================
+// لاگ دوره‌ای (هر ۵۰۰ میلی‌ثانیه)
 setInterval(() => {
   const playerCount = players.size;
   const vehicleCount = vehicleManager.vehicles.size;
-  
   if (playerCount === 0 && vehicleCount === 0) return;
 
   console.log(`\n📊 [${new Date().toISOString()}] STATUS UPDATE`);
@@ -49,9 +46,7 @@ setInterval(() => {
   console.log(`─────────────────────────────────────────────`);
 }, 500);
 
-// ============================================================
-// 📡 توابع کمکی
-// ============================================================
+// ========== توابع کمکی ==========
 function broadcast(data, excludeId = null) {
   const message = JSON.stringify(data);
   for (const [id, player] of players) {
@@ -80,9 +75,7 @@ function sendFullState(player) {
   });
 }
 
-// ============================================================
-// 🔌 مدیریت اتصال
-// ============================================================
+// ========== مدیریت اتصال ==========
 wss.on('connection', (ws) => {
   const player = new Player(ws);
   players.set(player.id, player);
@@ -116,7 +109,8 @@ wss.on('connection', (ws) => {
       if (player.id === vehicle.ownerId) {
         vehicleManager.removeVehicle(vehicle.id);
         console.log(`🚗 [${new Date().toISOString()}] Vehicle ${vehicle.id.substring(0, 8)}... (CarDB: ${vehicle.car_db_id}) removed (owner left)`);
-        broadcast({ type: PacketType.VEHICLE_REMOVED, vehicleId: vehicle.id });
+        const removedMsg = { type: PacketType.VEHICLE_REMOVED, vehicleId: vehicle.id };
+        broadcast(removedMsg); // به همه (از جمله مالک نیست چون قطع شده)
       } else {
         const seat = vehicle.removePassenger(player.id);
         if (seat !== -1) {
@@ -131,9 +125,7 @@ wss.on('connection', (ws) => {
   });
 });
 
-// ============================================================
-// 📨 پردازش پیام‌ها
-// ============================================================
+// ========== پردازش پیام‌ها ==========
 function handleMessage(player, data) {
   if (player.isBanned) {
     player.send({ type: PacketType.ERROR, message: 'You are banned.' });
@@ -173,12 +165,6 @@ function handleMessage(player, data) {
         player.send({ type: PacketType.ERROR, message: 'Missing vehicle data' });
         return;
       }
-      // (اختیاری) اگر می‌خواهید هر مالک فقط یک ماشین داشته باشد، این بخش را فعال کنید:
-      // if (vehicleManager.findVehiclesByOwner(player.id).length > 0) {
-      //   player.send({ type: PacketType.ERROR, message: 'You already own a vehicle' });
-      //   return;
-      // }
-
       const vehicle = vehicleManager.createVehicle(
         player.id,
         name,
@@ -196,9 +182,10 @@ function handleMessage(player, data) {
       player.job = job;
       console.log(`🚗 [${new Date().toISOString()}] Vehicle created by ${player.id.substring(0, 8)}... (ID: ${vehicle.id.substring(0, 8)}..., CarDB: ${vehicle.car_db_id}) at (${position.x}, ${position.y})`);
       
-      // ارسال به خود مالک و دیگران
       const stateMsg = { type: PacketType.VEHICLE_STATE, vehicle: vehicle.getState() };
+      // ارسال به خود مالک
       player.send(stateMsg);
+      // ارسال به دیگران (به جز مالک)
       broadcast(stateMsg, player.id);
       break;
     }
@@ -246,23 +233,21 @@ function handleMessage(player, data) {
         // مالک خارج می‌شود → ماشین حذف می‌شود
         vehicleManager.removeVehicle(vehicle.id);
         console.log(`🚗 [${new Date().toISOString()}] Vehicle ${vehicle.id.substring(0, 8)}... (CarDB: ${vehicle.car_db_id}) removed (owner left)`);
-        
-        // ارسال به خود مالک و دیگران
         const removedMsg = { type: PacketType.VEHICLE_REMOVED, vehicleId: vehicle.id };
+        // ارسال به خود مالک
         player.send(removedMsg);
+        // ارسال به دیگران
         broadcast(removedMsg, player.id);
-        
         player.vehicleId = null;
         player.seatIndex = null;
       } else {
-        // مسافر خارج می‌شود → فقط از صندلی خارج می‌شود
+        // مسافر خارج می‌شود
         const seat = vehicle.removePassenger(player.id);
         if (seat === -1) {
           player.send({ type: PacketType.ERROR, message: 'You are not in this vehicle' });
           return;
         }
         console.log(`🚗 [${new Date().toISOString()}] Passenger ${player.id.substring(0, 8)}... left vehicle (seat ${seat})`);
-        
         const seatMsg = { type: PacketType.SEAT_UPDATE, vehicleId: vehicle.id, seats: vehicle.seats };
         broadcast(seatMsg);
         player.vehicleId = null;
@@ -281,9 +266,10 @@ function handleMessage(player, data) {
       vehicle.updateState(position, rotation, steering);
       console.log(`🚗 [${new Date().toISOString()}] Vehicle ${vehicle.id.substring(0, 8)}... (CarDB: ${vehicle.car_db_id}) updated: Pos(${vehicle.position.x.toFixed(1)}, ${vehicle.position.y.toFixed(1)}) Rot: ${vehicle.rotation.toFixed(2)} Steer: ${vehicle.steering.toFixed(2)}`);
       
-      // ارسال به خود مالک و دیگران
       const stateMsg = { type: PacketType.VEHICLE_STATE, vehicle: vehicle.getState() };
+      // ارسال به خود مالک
       player.send(stateMsg);
+      // ارسال به دیگران
       broadcast(stateMsg, player.id);
       break;
     }
