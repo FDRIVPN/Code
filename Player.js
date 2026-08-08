@@ -8,8 +8,8 @@ export default class Player {
     this.job = '';
     this.position = { x: 0, y: 0 };
     this.rotation = 0;
-    this.vehicleId = null;
-    this.seatIndex = null;
+    this.vehicleId = null;   // شناسه ماشینی که سوار است
+    this.seatIndex = null;   // شماره صندلی
     this.isBanned = false;
   }
 
