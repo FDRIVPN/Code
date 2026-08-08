@@ -3,11 +3,10 @@ import config from './config.js';
 import Player from './Player.js';
 import VehicleManager from './VehicleManager.js';
 import BanManager from './BanManager.js';
-import Chat from './Chat.js';          // ← همان فایل Chat خودتان
+import Chat from './Chat.js';
 import { PacketType } from './Packet.js';
 import fs from 'fs';
 
-// ایجاد پوشه data اگر وجود ندارد
 if (!fs.existsSync('./data')) {
   fs.mkdirSync('./data');
 }
@@ -18,7 +17,7 @@ console.log(`🚀 Server running on port ${config.port}`);
 const players = new Map();
 const vehicleManager = new VehicleManager();
 const banManager = new BanManager();
-const chat = new Chat(banManager);     // ← استفاده از Chat با بن‌منیجر
+const chat = new Chat(banManager);
 
 function broadcast(data, excludeId = null) {
   const message = JSON.stringify(data);
@@ -52,7 +51,6 @@ wss.on('connection', (ws) => {
   const player = new Player(ws);
   players.set(player.id, player);
 
-  // بررسی بن
   if (banManager.isBanned(player.id)) {
     player.isBanned = true;
     player.send({ type: PacketType.YOU_ARE_BANNED, message: 'شما بن شده‌اید.' });
@@ -75,17 +73,12 @@ wss.on('connection', (ws) => {
   });
 
   ws.on('close', () => {
-    // خروج از ماشین
     const vehicle = vehicleManager.findVehicleByPlayer(player.id);
     if (vehicle) {
       const seat = vehicle.removePassenger(player.id);
       if (seat !== -1) {
-        if (player.id === vehicle.ownerId) {
-          vehicleManager.removeVehicle(vehicle.id);
-          broadcast({ type: PacketType.VEHICLE_REMOVED, vehicleId: vehicle.id });
-        } else {
-          broadcast({ type: PacketType.SEAT_UPDATE, vehicleId: vehicle.id, seats: vehicle.seats });
-        }
+        // ✅ تغییر: ماشین را حذف نکن، فقط صندلی را خالی کن
+        broadcast({ type: PacketType.SEAT_UPDATE, vehicleId: vehicle.id, seats: vehicle.seats });
       }
     }
     players.delete(player.id);
@@ -94,7 +87,6 @@ wss.on('connection', (ws) => {
   });
 });
 
-// ===== تابع پردازش پیام =====
 function handleMessage(player, data) {
   if (player.isBanned) {
     player.send({ type: PacketType.ERROR, message: 'You are banned.' });
@@ -156,14 +148,13 @@ function handleMessage(player, data) {
         player.send({ type: PacketType.ERROR, message: 'Vehicle not found' });
         return;
       }
-      // خروج از ماشین قبلی
       const oldV = vehicleManager.findVehicleByPlayer(player.id);
       if (oldV) {
-        oldV.removePassenger(player.id);
         if (oldV.ownerId === player.id) {
           player.send({ type: PacketType.ERROR, message: 'You are owner, cannot join another' });
           return;
         }
+        oldV.removePassenger(player.id);
       }
       if (!vehicle.addPassenger(player.id, seatIndex)) {
         player.send({ type: PacketType.ERROR, message: 'Seat not available' });
@@ -181,19 +172,15 @@ function handleMessage(player, data) {
         player.send({ type: PacketType.ERROR, message: 'Not in a vehicle' });
         return;
       }
-      if (vehicle.ownerId === player.id) {
-        vehicleManager.removeVehicle(vehicle.id);
-        broadcast({ type: PacketType.VEHICLE_REMOVED, vehicleId: vehicle.id });
-        player.vehicleId = null;
-        player.seatIndex = null;
-      } else {
-        const seat = vehicle.removePassenger(player.id);
-        if (seat !== -1) {
-          player.vehicleId = null;
-          player.seatIndex = null;
-          broadcast({ type: PacketType.SEAT_UPDATE, vehicleId: vehicle.id, seats: vehicle.seats });
-        }
+      const seat = vehicle.removePassenger(player.id);
+      if (seat === -1) {
+        player.send({ type: PacketType.ERROR, message: 'You are not in this vehicle' });
+        return;
       }
+      // ✅ تغییر: ماشین را حذف نکن، فقط صندلی را خالی کن
+      broadcast({ type: PacketType.SEAT_UPDATE, vehicleId: vehicle.id, seats: vehicle.seats });
+      player.vehicleId = null;
+      player.seatIndex = null;
       break;
     }
 
@@ -215,7 +202,6 @@ function handleMessage(player, data) {
         player.send({ type: PacketType.ERROR, message: 'Invalid target' });
         return;
       }
-      // در عمل باید اجازه ادمین چک شود، فعلاً ساده
       banManager.ban(targetId);
       const target = players.get(targetId);
       if (target) {
