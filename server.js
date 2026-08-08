@@ -113,13 +113,11 @@ wss.on('connection', (ws) => {
   ws.on('close', () => {
     const vehicle = vehicleManager.findVehicleByPlayer(player.id);
     if (vehicle) {
-      // اگر پلیر مالک است، ماشین را کامل حذف کن
       if (player.id === vehicle.ownerId) {
         vehicleManager.removeVehicle(vehicle.id);
         console.log(`🚗 [${new Date().toISOString()}] Vehicle ${vehicle.id.substring(0, 8)}... (CarDB: ${vehicle.car_db_id}) removed (owner left)`);
         broadcast({ type: PacketType.VEHICLE_REMOVED, vehicleId: vehicle.id });
       } else {
-        // اگر مسافر است، فقط از صندلی خارجش کن
         const seat = vehicle.removePassenger(player.id);
         if (seat !== -1) {
           console.log(`🚗 [${new Date().toISOString()}] Passenger ${player.id.substring(0, 8)}... left vehicle (seat ${seat})`);
@@ -175,8 +173,7 @@ function handleMessage(player, data) {
         player.send({ type: PacketType.ERROR, message: 'Missing vehicle data' });
         return;
       }
-      // بررسی اینکه آیا قبلاً ماشین دارد یا نه (اختیاری)
-      // اگر می‌خواهید هر مالک فقط یک ماشین داشته باشد، این بخش را فعال کنید:
+      // در صورت نیاز، می‌توانید بررسی کنید که مالک بیش از یک ماشین نداشته باشد
       // if (vehicleManager.findVehiclesByOwner(player.id).length > 0) {
       //   player.send({ type: PacketType.ERROR, message: 'You already own a vehicle' });
       //   return;
@@ -189,7 +186,7 @@ function handleMessage(player, data) {
         position,
         rotation || 0,
         steering || 0,
-        car_db_id || null  // اضافه کردن car_db_id
+        car_db_id || null
       );
       if (!vehicle) {
         player.send({ type: PacketType.ERROR, message: 'Vehicle creation failed' });
@@ -239,7 +236,6 @@ function handleMessage(player, data) {
         player.send({ type: PacketType.ERROR, message: 'Not in a vehicle' });
         return;
       }
-      // اگر مالک است، ماشین را کامل حذف کن
       if (player.id === vehicle.ownerId) {
         vehicleManager.removeVehicle(vehicle.id);
         console.log(`🚗 [${new Date().toISOString()}] Vehicle ${vehicle.id.substring(0, 8)}... (CarDB: ${vehicle.car_db_id}) removed (owner left)`);
@@ -247,7 +243,6 @@ function handleMessage(player, data) {
         player.vehicleId = null;
         player.seatIndex = null;
       } else {
-        // اگر مسافر است، فقط از صندلی خارجش کن
         const seat = vehicle.removePassenger(player.id);
         if (seat === -1) {
           player.send({ type: PacketType.ERROR, message: 'You are not in this vehicle' });
