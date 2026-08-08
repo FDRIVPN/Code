@@ -19,6 +19,44 @@ const vehicleManager = new VehicleManager();
 const banManager = new BanManager();
 const chat = new Chat(banManager);
 
+// ============================================================
+// 📊 لاگ دوره‌ای وضعیت (هر ۵۰۰ میلی‌ثانیه)
+// ============================================================
+setInterval(() => {
+  const playerCount = players.size;
+  const vehicleCount = vehicleManager.vehicles.size;
+  
+  if (playerCount === 0 && vehicleCount === 0) {
+    // اگر هیچ کس آنلاین نیست، لاگ نکن (برای جلوگیری از شلوغی)
+    return;
+  }
+
+  console.log(`\n📊 [${new Date().toISOString()}] STATUS UPDATE`);
+  console.log(`   👥 Players online: ${playerCount}`);
+  console.log(`   🚗 Vehicles: ${vehicleCount}`);
+
+  // لاگ پلیرها
+  if (playerCount > 0) {
+    console.log(`   📋 Players:`);
+    for (const [id, player] of players) {
+      console.log(`      - ${id.substring(0, 8)}... | Name: "${player.name || 'Unknown'}" | Pos: (${player.position.x.toFixed(1)}, ${player.position.y.toFixed(1)}) | Rot: ${player.rotation.toFixed(2)} | Vehicle: ${player.vehicleId ? player.vehicleId.substring(0, 8)+'...' : 'None'}`);
+    }
+  }
+
+  // لاگ ماشین‌ها
+  if (vehicleCount > 0) {
+    console.log(`   🚗 Vehicles:`);
+    for (const [id, vehicle] of vehicleManager.vehicles) {
+      const seats = vehicle.seats.map(s => s ? s.substring(0, 8)+'...' : 'Empty');
+      console.log(`      - ${id.substring(0, 8)}... | Owner: ${vehicle.ownerId.substring(0, 8)}... | Pos: (${vehicle.position.x.toFixed(1)}, ${vehicle.position.y.toFixed(1)}) | Seats: [${seats.join(', ')}]`);
+    }
+  }
+  console.log(`─────────────────────────────────────────────`);
+}, 500); // هر ۵۰۰ میلی‌ثانیه
+
+// ============================================================
+// 📡 توابع کمکی
+// ============================================================
 function broadcast(data, excludeId = null) {
   const message = JSON.stringify(data);
   for (const [id, player] of players) {
@@ -47,6 +85,9 @@ function sendFullState(player) {
   });
 }
 
+// ============================================================
+// 🔌 مدیریت اتصال
+// ============================================================
 wss.on('connection', (ws) => {
   const player = new Player(ws);
   players.set(player.id, player);
@@ -56,10 +97,11 @@ wss.on('connection', (ws) => {
     player.send({ type: PacketType.YOU_ARE_BANNED, message: 'شما بن شده‌اید.' });
     player.close('Banned');
     players.delete(player.id);
+    console.log(`🚫 Player banned: ${player.id}`);
     return;
   }
 
-  console.log(`✅ Player connected: ${player.id}`);
+  console.log(`✅ [${new Date().toISOString()}] Player connected: ${player.id.substring(0, 8)}...`);
   player.send({ type: PacketType.SET_ID, id: player.id });
   sendFullState(player);
 
@@ -68,6 +110,7 @@ wss.on('connection', (ws) => {
       const data = JSON.parse(raw);
       handleMessage(player, data);
     } catch (err) {
+      console.log(`❌ Invalid JSON from ${player.id.substring(0, 8)}...: ${err.message}`);
       player.send({ type: PacketType.ERROR, message: 'Invalid JSON' });
     }
   });
@@ -77,15 +120,19 @@ wss.on('connection', (ws) => {
     if (vehicle) {
       const seat = vehicle.removePassenger(player.id);
       if (seat !== -1) {
+        console.log(`🚗 [${new Date().toISOString()}] Player ${player.id.substring(0, 8)}... left vehicle ${vehicle.id.substring(0, 8)}... (seat ${seat})`);
         broadcast({ type: PacketType.SEAT_UPDATE, vehicleId: vehicle.id, seats: vehicle.seats });
       }
     }
     players.delete(player.id);
     broadcast({ type: PacketType.PLAYER_LEFT, id: player.id });
-    console.log(`❌ Player disconnected: ${player.id}`);
+    console.log(`❌ [${new Date().toISOString()}] Player disconnected: ${player.id.substring(0, 8)}...`);
   });
 });
 
+// ============================================================
+// 📨 پردازش پیام‌ها
+// ============================================================
 function handleMessage(player, data) {
   if (player.isBanned) {
     player.send({ type: PacketType.ERROR, message: 'You are banned.' });
@@ -95,15 +142,23 @@ function handleMessage(player, data) {
   const { type } = data;
 
   switch (type) {
-    case PacketType.UPDATE:
-      if (data.position) player.position = data.position;
-      if (data.rotation !== undefined) player.rotation = data.rotation;
+    case PacketType.UPDATE: {
+      if (data.position) {
+        player.position = data.position;
+        console.log(`🔄 [${new Date().toISOString()}] Player ${player.id.substring(0, 8)}... moved to (${player.position.x.toFixed(1)}, ${player.position.y.toFixed(1)})`);
+      }
+      if (data.rotation !== undefined) {
+        player.rotation = data.rotation;
+        console.log(`🔄 [${new Date().toISOString()}] Player ${player.id.substring(0, 8)}... rotated to ${player.rotation.toFixed(2)}`);
+      }
       broadcast({ type: PacketType.UPDATE, id: player.id, position: player.position, rotation: player.rotation }, player.id);
       break;
+    }
 
     case PacketType.CHAT: {
       const msg = chat.processMessage(player.id, data.message);
       if (msg !== null) {
+        console.log(`💬 [${new Date().toISOString()}] ${player.name || 'Unknown'} (${player.id.substring(0, 8)}...): ${msg}`);
         broadcast({ type: PacketType.CHAT, from: player.id, name: player.name || 'Unknown', message: msg });
       } else {
         player.send({ type: PacketType.ERROR, message: 'You are banned from chat.' });
@@ -132,6 +187,7 @@ function handleMessage(player, data) {
       }
       player.name = name;
       player.job = job;
+      console.log(`🚗 [${new Date().toISOString()}] Vehicle created by ${player.id.substring(0, 8)}... (ID: ${vehicle.id.substring(0, 8)}...) at (${position.x}, ${position.y})`);
       broadcast({ type: PacketType.VEHICLE_STATE, vehicle: vehicle.getState() });
       break;
     }
@@ -154,6 +210,7 @@ function handleMessage(player, data) {
           return;
         }
         oldV.removePassenger(player.id);
+        console.log(`🚗 [${new Date().toISOString()}] Player ${player.id.substring(0, 8)}... left vehicle ${oldV.id.substring(0, 8)}...`);
       }
       if (!vehicle.addPassenger(player.id, seatIndex)) {
         player.send({ type: PacketType.ERROR, message: 'Seat not available' });
@@ -161,6 +218,7 @@ function handleMessage(player, data) {
       }
       player.vehicleId = vehicle.id;
       player.seatIndex = seatIndex;
+      console.log(`🚗 [${new Date().toISOString()}] Player ${player.id.substring(0, 8)}... joined vehicle ${vehicle.id.substring(0, 8)}... (seat ${seatIndex})`);
       broadcast({ type: PacketType.SEAT_UPDATE, vehicleId: vehicle.id, seats: vehicle.seats });
       break;
     }
@@ -176,6 +234,7 @@ function handleMessage(player, data) {
         player.send({ type: PacketType.ERROR, message: 'You are not in this vehicle' });
         return;
       }
+      console.log(`🚗 [${new Date().toISOString()}] Player ${player.id.substring(0, 8)}... left vehicle ${vehicle.id.substring(0, 8)}... (seat ${seat})`);
       broadcast({ type: PacketType.SEAT_UPDATE, vehicleId: vehicle.id, seats: vehicle.seats });
       player.vehicleId = null;
       player.seatIndex = null;
@@ -190,6 +249,7 @@ function handleMessage(player, data) {
       }
       const { position, rotation, steering } = data;
       vehicle.updateState(position, rotation, steering);
+      console.log(`🚗 [${new Date().toISOString()}] Vehicle ${vehicle.id.substring(0, 8)}... updated: Pos(${vehicle.position.x.toFixed(1)}, ${vehicle.position.y.toFixed(1)}) Rot: ${vehicle.rotation.toFixed(2)} Steer: ${vehicle.steering.toFixed(2)}`);
       broadcast({ type: PacketType.VEHICLE_STATE, vehicle: vehicle.getState() });
       break;
     }
@@ -207,6 +267,7 @@ function handleMessage(player, data) {
         target.send({ type: PacketType.YOU_ARE_BANNED, message: 'You have been banned.' });
         target.close('Banned');
         players.delete(targetId);
+        console.log(`🚫 [${new Date().toISOString()}] Player ${player.id.substring(0, 8)}... banned ${targetId.substring(0, 8)}...`);
       }
       broadcast({ type: PacketType.BAN_LIST, bans: banManager.getBanList() });
       break;
@@ -219,6 +280,7 @@ function handleMessage(player, data) {
         return;
       }
       banManager.unban(targetId);
+      console.log(`🔓 [${new Date().toISOString()}] Player ${player.id.substring(0, 8)}... unbanned ${targetId.substring(0, 8)}...`);
       broadcast({ type: PacketType.BAN_LIST, bans: banManager.getBanList() });
       break;
     }
@@ -228,6 +290,7 @@ function handleMessage(player, data) {
       break;
 
     default:
+      console.log(`⚠️ [${new Date().toISOString()}] Unknown message type from ${player.id.substring(0, 8)}...: ${type}`);
       player.send({ type: PacketType.ERROR, message: `Unknown type: ${type}` });
   }
 }
