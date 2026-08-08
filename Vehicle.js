@@ -1,13 +1,15 @@
+import { randomUUID } from 'crypto';
+
 export default class Vehicle {
   constructor(ownerId, name, job, position, rotation, steering) {
-    this.id = ownerId;
-    this.ownerId = ownerId;
+    this.CAR_DB_ID = randomUUID();   // ✅ شناسه یکتا و مستقل
+    this.ownerId = ownerId;          // شناسه مالک
     this.name = name;
     this.job = job;
     this.position = { ...position };
     this.rotation = rotation;
     this.steering = steering || 0;
-    this.seats = [ownerId, null, null, null]; // صندلی ۰ مالک
+    this.seats = [ownerId, null, null, null];
   }
 
   isSeatAvailable(seatIndex) {
@@ -39,7 +41,7 @@ export default class Vehicle {
 
   getState() {
     return {
-      id: this.id,
+      CAR_DB_ID: this.CAR_DB_ID,    // ✅ شناسه جدید
       ownerId: this.ownerId,
       name: this.name,
       job: this.job,
