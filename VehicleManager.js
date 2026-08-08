@@ -2,13 +2,12 @@ import Vehicle from './Vehicle.js';
 
 export default class VehicleManager {
   constructor() {
-    this.vehicles = new Map();
+    this.vehicles = new Map(); // key: CAR_DB_ID, value: Vehicle
   }
 
   createVehicle(ownerId, name, job, position, rotation, steering) {
-    if (this.vehicles.has(ownerId)) return null;
     const vehicle = new Vehicle(ownerId, name, job, position, rotation, steering);
-    this.vehicles.set(ownerId, vehicle);
+    this.vehicles.set(vehicle.CAR_DB_ID, vehicle);
     return vehicle;
   }
 
@@ -33,5 +32,15 @@ export default class VehicleManager {
 
   getAllVehicles() {
     return Array.from(this.vehicles.values()).map(v => v.getState());
+  }
+
+  findVehiclesByOwner(ownerId) {
+    const result = [];
+    for (const [id, vehicle] of this.vehicles) {
+      if (vehicle.ownerId === ownerId) {
+        result.push(vehicle);
+      }
+    }
+    return result;
   }
 }
