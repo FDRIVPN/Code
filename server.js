@@ -240,8 +240,8 @@ class Chat {
 // کلاس Player
 // ============================================================
 class Player {
-  constructor(ws) {
-    this.id = randomUUID();
+  constructor(ws, connectionId) {
+    this.id = connectionId;
     this.user_id = null;
     this.name = 'Unknown';
     this.job = '';
@@ -274,10 +274,10 @@ class Player {
 // ============================================================
 const port = config.port;
 const wss = new WebSocketServer({ port });
-console.log(`🚀 Server running on port ${port} | Mode: user_id only`);
+console.log(`🚀 Server running on port ${port} | Mode: Accepting player ID from client`);
 
-const players = new Map(); // connectionId -> Player
-const userMap = new Map(); // user_id -> connectionId
+const players = new Map();
+const userMap = new Map();
 const vehicleManager = new VehicleManager();
 const banManager = new BanManager();
 const chat = new Chat(banManager);
@@ -347,7 +347,7 @@ function handleMessage(player, data) {
     case PacketType.SET_ID: {
       if (data.id) {
         const userId = String(data.id);
-        if (/^[A-Za-z0-9_]{3,50}$/.test(userId)) {
+        if (/^[A-Za-z0-9_-]{3,50}$/.test(userId)) {
           if (userMap.has(userId)) {
             const oldConnId = userMap.get(userId);
             const oldPlayer = players.get(oldConnId);
@@ -372,13 +372,12 @@ function handleMessage(player, data) {
       let userId = data.user_id;
       if (userId) {
         userId = String(userId);
-        if (!/^[A-Za-z0-9_]{3,50}$/.test(userId)) {
+        if (!/^[A-Za-z0-9_-]{3,50}$/.test(userId)) {
           player.send({ type: PacketType.ERROR, message: 'Invalid user_id format' });
           return;
         }
       }
 
-      // Handle duplicate user_id replacement
       if (userId) {
         const existingConnId = userMap.get(userId);
         if (existingConnId && existingConnId !== player.id) {
@@ -394,7 +393,6 @@ function handleMessage(player, data) {
         userMap.set(userId, player.id);
       }
 
-      // Update player data
       if (data.name !== undefined) player.name = data.name;
       if (data.job !== undefined) player.job = data.job;
       if (data.position) {
@@ -408,7 +406,6 @@ function handleMessage(player, data) {
       if (data.rotation !== undefined) player.rotation = data.rotation;
       player.lastUpdate = Date.now();
 
-      // Broadcast to all players
       broadcast({
         type: PacketType.UPDATE,
         id: player.id,
@@ -422,7 +419,6 @@ function handleMessage(player, data) {
         is_grounded: data.is_grounded !== undefined ? data.is_grounded : true
       }, player.id);
 
-      // Vehicle update logic
       if (data.vehicle_id !== undefined) {
         if (data.vehicle_id !== null && data.vehicle_id !== '') {
           let vehicle = vehicleManager.getVehicle(data.vehicle_id);
@@ -443,7 +439,6 @@ function handleMessage(player, data) {
         }
       }
 
-      // Vehicle state update
       if (data.vehicle_state) {
         const vehicleId = data.vehicle_state.id;
         if (vehicleManager.getVehicle(vehicleId)) {
@@ -531,16 +526,41 @@ function handleMessage(player, data) {
 // WebSocket connection
 // ============================================================
 wss.on('connection', (ws) => {
-  const player = new Player(ws);
+  const tempConnectionId = randomUUID();
+  const player = new Player(ws, tempConnectionId);
+  
   players.set(player.id, player);
-
-  // Send SET_ID immediately
-  player.send({ type: PacketType.SET_ID, id: player.id });
 
   ws.on('message', (message) => {
     try {
       const data = JSON.parse(message.toString());
-      handleMessage(player, data);
+      
+      if (data.type === PacketType.SET_ID && data.id) {
+        const clientId = String(data.id);
+        
+        if (!/^[A-Za-z0-9_-]{3,50}$/.test(clientId)) {
+          player.send({ type: PacketType.ERROR, message: 'Invalid ID format' });
+          player.close('Invalid ID format');
+          return;
+        }
+
+        if (players.has(clientId)) {
+          const oldPlayer = players.get(clientId);
+          if (oldPlayer) {
+            try { oldPlayer.send({ type: PacketType.ERROR, message: 'Replaced by new connection' }); } catch(e) {}
+            oldPlayer.close('Replaced by new connection');
+          }
+        }
+
+        players.delete(tempConnectionId);
+        player.id = clientId;
+        players.set(clientId, player);
+
+        player.send({ type: PacketType.SET_ID, id: clientId });
+        console.log(`✅ Client connected with ID: ${clientId}`);
+      } else {
+        handleMessage(player, data);
+      }
     } catch (e) {
       console.error('Message parse error:', e);
       player.send({ type: PacketType.ERROR, message: 'Invalid JSON' });
@@ -559,6 +579,7 @@ wss.on('connection', (ws) => {
       }
     }
     broadcast({ type: PacketType.PLAYER_LEFT, id: player.id });
+    console.log(`❌ Client disconnected: ${player.id}`);
   });
 
   ws.on('error', (err) => {
