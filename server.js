@@ -274,7 +274,7 @@ class Player {
 // ============================================================
 const port = config.port;
 const wss = new WebSocketServer({ port });
-console.log(`🚀 Server running on port ${port} | Mode: Accepting player ID from client`);
+console.log(`🚀 Server running on port ${port} | Mode: Waiting for player ID from client`);
 
 const players = new Map();
 const userMap = new Map();
@@ -361,6 +361,7 @@ function handleMessage(player, data) {
           player.user_id = userId;
           userMap.set(userId, player.id);
           player.send({ type: PacketType.SET_ID, id: player.id });
+          console.log(`✅ Player registered: ${userId}`);
         } else {
           player.send({ type: PacketType.ERROR, message: 'Invalid user_id format' });
         }
@@ -450,10 +451,7 @@ function handleMessage(player, data) {
     }
 
     case PacketType.CHAT: {
-      const sender = Array.from(wss.clients).find(c => c.userId === player.id);
-      if (sender) {
-        chat.broadcastMessage(wss, player.id, player.name, data.message);
-      }
+      chat.broadcastMessage(wss, player.id, player.name, data.message);
       break;
     }
 
@@ -530,6 +528,7 @@ wss.on('connection', (ws) => {
   const player = new Player(ws, tempConnectionId);
   
   players.set(player.id, player);
+  console.log(`🔗 New connection received, waiting for SET_ID...`);
 
   ws.on('message', (message) => {
     try {
